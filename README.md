@@ -179,3 +179,16 @@ Ejects from Create React App for full configuration control.
 5. **Export**: Download filtered data as CSV using "Download CSV" button
 
 ---
+
+## Backend Development
+
+1. **../raw/** - this is the raw data that is shared with us.
+  * This project is intended to only normalize, query, and present the stock data so researchers can work more efficiently
+
+2. **../data/** - this is the normalized data that will be stored in a Parquet file for faster look-ups.
+  * Again, this project is only intended to provide the script to query the stock data. The data will be provided by each user on their own.
+
+3. **../rollups/** - pre-aggregated 5m / 30min / 1hr Parquet
+
+4. **etl_ohlvc.py** - the script that will normalize the data (read raw -> write data)
+  * Input is the data from ../raw/ and the output is going to ../data/ where the data will be stored in a Parquet file
