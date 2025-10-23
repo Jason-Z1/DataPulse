@@ -55,3 +55,4 @@ def createParquet(dir):
 
     # Write the Parquet
     out.write_parquet("normalized:parquet", compression="zstd")
+
