@@ -22,7 +22,7 @@ def find_file(symbol: str, increm: str, base_path: str = "../") -> str:
 
     alpha = symbol[0].upper()
     
-    path = os.path.join(base_path, increm, "FirstData", "Downloaded_Marhc15", f"Historical_stock_full_{alpha}_{increm}_adj_splitdiv.zip",
+    path = os.path.join(base_path, increm, "FirstData", "Downloaded_March15", f"Historical_stock_full_{alpha}_{increm}_adj_splitdiv.zip",
                         f"{symbol}_full_{increm}_adjsplitdiv.txt")
     
     return path
@@ -38,12 +38,14 @@ def parse(file_path: str, start_time: Optional[str] = None, end_time: Optional[s
         raise FileNotFoundError(f"File not found: {file_path}")
     
     # Defines the data schema
+    # Read volume as float first (some source files contain values like '128.0')
+    # and then cast to int64 after parsing to avoid CSV conversion errors.
     schema = pa.schema([ ("timestamp", pa.timestamp("s")),
                         ("open", pa.float64()),
                         ("high", pa.float64()),
                         ("low", pa.float64()),
                         ("close", pa.float64()),
-                        ("volume", pa.int64()) ])
+                        ("volume", pa.float64()) ])
 
     table = csv.read_csv(
         file_path,
@@ -60,7 +62,7 @@ def parse(file_path: str, start_time: Optional[str] = None, end_time: Optional[s
 
         if start_time:
             start_ts = pa.scalar(
-                datetime.fromissoformat(start_time),
+                datetime.fromisoformat(start_time),
                 type=pa.timestamp("s")
             )
             filters.append(pc.greater_equal(table["timestamp"], start_ts))
