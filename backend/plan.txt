@@ -1,0 +1,23 @@
+          ┌──────────────────────────┐
+          │     React Frontend       │
+          │ (stock-search-app)       │
+          │                          │
+          │ Search bar, charts, UI   │
+          └──────────┬───────────────┘
+                     │  fetch()
+                     ▼
+          ┌──────────────────────────┐
+          │        FastAPI           │
+          │      (backend/)          │
+          ├──────────────────────────┤
+          │ /symbols?query=...       │
+          │ /timeseries?from=...     │
+          │ /aggregate?interval=...  │
+          │ /download?...            │
+          └──────────┬───────────────┘
+                     ▼
+        ┌──────────────────────────────┐
+        │ Dask / Pandas / PyArrow      │
+        │  Chunked Data Processing     │
+        │  (data/*.csv, parquet)       │
+        └──────────────────────────────┘
