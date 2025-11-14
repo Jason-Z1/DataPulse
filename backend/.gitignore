@@ -1,8 +1,7 @@
-venv/
+FirstData/
 etl_tmp/
+venv/
 logs/
 *.parquet
 *.txt
 *.csv
-parse.py
-Test.py
