@@ -21,3 +21,25 @@
         │  Chunked Data Processing     │
         │  (data/*.csv, parquet)       │
         └──────────────────────────────┘
+
+project-root/
+├── backend/
+│   ├── etl/                    ← ETL scripts (below)
+│   │   ├── 0_ingest.py
+│   │   ├── 1_normalize.py
+│   │   ├── 2_partition_write.py
+│   │   ├── 3_aggregate.py
+│   │   ├── 4_metadata.py
+│   │   └── 5_validate.py
+│   ├── data/                   ← processed outputs (Parquet partitions)
+│   │   └── parquet/            ← final store (symbol=/year=/month=)
+│   └── requirements.txt
+└── FirstData/                  ← raw
+    ├── 1hr/
+    │   └── Historical_stock_full_K_1hour_adj_splitdiv.zip
+    └── 5min/
+        └── Historical_stock_full_K_5min_adj_splitdiv.zip
+
+Note Install the requirements.txt first
+Recomended to create an env then instal requirements.txt , then run 
+compatebility with python3.10
