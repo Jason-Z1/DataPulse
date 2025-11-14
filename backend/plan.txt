@@ -7,7 +7,7 @@
                      │  fetch()
                      ▼
           ┌──────────────────────────┐
-          │        FastAPI           │
+          │       Flask          │
           │      (backend/)          │
           ├──────────────────────────┤
           │ /symbols?query=...       │
@@ -17,20 +17,13 @@
           └──────────┬───────────────┘
                      ▼
         ┌──────────────────────────────┐
-        │ Dask / Pandas / PyArrow      │
-        │  Chunked Data Processing     │
-        │  (data/*.csv, parquet)       │
+        │Manifest.json Better for speed│
         └──────────────────────────────┘
 
 project-root/
 ├── backend/
 │   ├── etl/                    ← ETL scripts (below)
 │   │   ├── 0_ingest.py
-│   │   ├── 1_normalize.py
-│   │   ├── 2_partition_write.py
-│   │   ├── 3_aggregate.py
-│   │   ├── 4_metadata.py
-│   │   └── 5_validate.py
 │   ├── data/                   ← processed outputs (Parquet partitions)
 │   │   └── parquet/            ← final store (symbol=/year=/month=)
 │   └── requirements.txt
@@ -43,3 +36,19 @@ project-root/
 Note Install the requirements.txt first
 Recomended to create an env then instal requirements.txt , then run 
 compatebility with python3.10
+
+
+ Start Both Servers
+Open two terminals:
+
+Terminal 1:
+
+bash
+cd backend/etl
+source venv/bin/activate
+python query_api.py
+Terminal 2:
+
+bash
+cd stock-search-app
+npm start

@@ -1,18 +1,23 @@
 import React, { useState } from 'react';
-import { Search, Download, TrendingUp, Calendar, Clock, Filter, BarChart3, Table } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { Search, Download, TrendingUp, Table, X } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+
+const INTERVALS = ["1hr", "5min", "1d", "1w"];
+const METRICS = ["open", "high", "low", "close", "volume"];
 
 const StockSearchEngine = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCompany, setSelectedCompany] = useState('');
-  const [timeInterval, setTimeInterval] = useState('1h');
+  const [selectedCompanies, setSelectedCompanies] = useState([]); // Array of symbols
+  const [interval, setInterval] = useState("1hr");
   const [dateFrom, setDateFrom] = useState('2005-01-01');
   const [dateTo, setDateTo] = useState('2005-01-10');
-  const [selectedMetrics, setSelectedMetrics] = useState(['open', 'high', 'low', 'close']);
+  const [selectedMetrics, setSelectedMetrics] = useState([...METRICS]);
   const [viewMode, setViewMode] = useState('chart');
   const [showResults, setShowResults] = useState(false);
+  const [stockData, setStockData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  // Mock company data with tags
   const companies = [
     { symbol: 'AAPL', name: 'Apple Inc.', tags: ['Technology', 'Consumer Electronics', 'Large Cap', 'Blue Chip'] },
     { symbol: 'GOOGL', name: 'Alphabet Inc.', tags: ['Technology', 'Search Engine', 'Cloud Computing', 'Large Cap'] },
@@ -21,43 +26,74 @@ const StockSearchEngine = () => {
     { symbol: 'AMZN', name: 'Amazon.com Inc.', tags: ['E-commerce', 'Cloud Computing', 'Large Cap', 'Growth'] }
   ];
 
-  // Mock stock data
-  const mockStockData = [
-    { time: '09:00', open: 10.5382, high: 10.5688, low: 10.5119, close: 10.5294, volume: 651999 },
-    { time: '10:00', open: 10.5294, high: 10.5731, low: 10.2758, close: 10.3326, volume: 959369 },
-    { time: '11:00', open: 10.3326, high: 10.4332, low: 10.2977, close: 10.4114, volume: 564186 },
-    { time: '12:00', open: 10.4114, high: 10.4944, low: 10.372, close: 10.4857, volume: 379398 },
-    { time: '13:00', open: 10.4857, high: 10.5163, low: 10.4201, close: 10.4245, volume: 562353 },
-    { time: '14:00', open: 10.4245, high: 10.4756, low: 10.3891, close: 10.4523, volume: 445721 },
-    { time: '15:00', open: 10.4523, high: 10.5234, low: 10.4123, close: 10.4987, volume: 623847 }
-  ];
+  // Color palette for different symbols
+  const symbolColors = {
+    'AAPL': '#8884d8',
+    'GOOGL': '#82ca9d',
+    'TSLA': '#ffc658',
+    'MSFT': '#ff7300',
+    'AMZN': '#a4de6c'
+  };
 
-  const handleSearch = () => {
-    setShowResults(true);
+  const handleSearch = async () => {
+    if (selectedCompanies.length === 0) {
+      setError('Please select at least one company symbol.');
+      return;
+    }
+    
+    setShowResults(false);
+    setLoading(true);
+    setError('');
+    const params = [
+      ...selectedCompanies.map(sym => `symbols[]=${sym}`),
+      `interval=${interval}`,
+      `date_from=${dateFrom}`,
+      `date_to=${dateTo}`,
+      ...selectedMetrics.map(m => `metrics[]=${m}`)
+    ].join('&');
+    try {
+      const res = await fetch(`/api/query_stock?${params}`);
+      if (!res.ok) {
+        setError('No data found for this search.');
+        setStockData([]);
+        setLoading(false);
+        setShowResults(true);
+        return;
+      }
+      const data = await res.json();
+      setStockData(data);
+      setLoading(false);
+      setShowResults(true);
+    } catch (err) {
+      setError('Network error or backend not running.');
+      setStockData([]);
+      setLoading(false);
+      setShowResults(true);
+    }
   };
 
   const handleMetricToggle = (metric) => {
-    setSelectedMetrics(prev => 
-      prev.includes(metric) 
+    setSelectedMetrics(prev =>
+      prev.includes(metric)
         ? prev.filter(m => m !== metric)
         : [...prev, metric]
     );
   };
 
   const downloadCSV = () => {
-    const headers = ['Time', ...selectedMetrics.map(m => m.charAt(0).toUpperCase() + m.slice(1)), 'Volume'];
+    if (!stockData.length) return;
+    const headers = ['Time', 'Symbol', ...selectedMetrics.map(m => m.charAt(0).toUpperCase() + m.slice(1))];
     const csvContent = [
       headers.join(','),
-      ...mockStockData.map(row => 
-        [row.time, ...selectedMetrics.map(metric => row[metric]), row.volume].join(',')
+      ...stockData.map(row =>
+        [row.time, row.symbol, ...selectedMetrics.map(metric => row[metric])].join(',')
       )
     ].join('\n');
-    
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${selectedCompany || 'stock'}_data.csv`;
+    a.download = `${selectedCompanies.join('_') || 'stock'}_data.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -70,7 +106,6 @@ const StockSearchEngine = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-      {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="flex items-center gap-3">
@@ -91,33 +126,32 @@ const StockSearchEngine = () => {
             Search Financial Data
           </h2>
 
-          {/* Company Search */}
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Company Search</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Company Symbols</label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by company name, symbol, or tags (e.g., Technology, Electric Vehicles)"
+                placeholder="Search company symbol, name, or tag"
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
-            </div>
-            
-            {/* Company Suggestions */}
-            {searchQuery && (
-              <div className="mt-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                {filteredCompanies.map(company => (
-                  <div 
-                    key={company.symbol}
-                    onClick={() => {
-                      setSelectedCompany(company.symbol);
-                      setSearchQuery(`${company.symbol} - ${company.name}`);
-                    }}
-                    className="p-4 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                  >
-                    <div className="flex justify-between items-start">
+              {searchQuery && (
+                <div className="mt-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto absolute w-full z-10">
+                  {filteredCompanies.map(company => (
+                    <div
+                      key={company.symbol}
+                      onClick={() => {
+                        setSelectedCompanies(prev =>
+                          prev.includes(company.symbol)
+                            ? prev
+                            : [...prev, company.symbol]
+                        );
+                        setSearchQuery('');
+                      }}
+                      className="p-4 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                    >
                       <div>
                         <div className="font-semibold text-gray-800">{company.symbol} - {company.name}</div>
                         <div className="flex flex-wrap gap-1 mt-2">
@@ -129,40 +163,47 @@ const StockSearchEngine = () => {
                         </div>
                       </div>
                     </div>
-                  </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            {/* Selected Companies Display */}
+            {selectedCompanies.length > 0 && (
+              <div className="flex gap-2 flex-wrap mt-3">
+                {selectedCompanies.map(sym => (
+                  <span key={sym} className="bg-blue-100 text-blue-800 rounded-full px-3 py-1 flex items-center gap-2 text-sm font-medium">
+                    {sym}
+                    <button
+                      onClick={() => setSelectedCompanies(prev => prev.filter(c => c !== sym))}
+                      className="hover:bg-blue-200 rounded-full p-0.5 transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Filters Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            {/* Time Interval */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <Clock className="w-4 h-4 inline mr-1" />
-                Time Interval
-              </label>
-              <select 
-                value={timeInterval}
-                onChange={(e) => setTimeInterval(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="1m">1 Minute</option>
-                <option value="5m">5 Minutes</option>
-                <option value="15m">15 Minutes</option>
-                <option value="1h">1 Hour</option>
-                <option value="1d">1 Day</option>
-                <option value="1w">1 Week</option>
-              </select>
-            </div>
+          {/* Interval Selection */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Interval</label>
+            <select
+              value={interval}
+              onChange={e => setInterval(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              {INTERVALS.map(intv => (
+                <option key={intv} value={intv}>{intv}</option>
+              ))}
+            </select>
+          </div>
 
-            {/* Date From */}
+          {/* Date Range */}
+          <div className="mb-6 grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <Calendar className="w-4 h-4 inline mr-1" />
-                From Date
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Date From</label>
               <input
                 type="date"
                 value={dateFrom}
@@ -170,13 +211,8 @@ const StockSearchEngine = () => {
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               />
             </div>
-
-            {/* Date To */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <Calendar className="w-4 h-4 inline mr-1" />
-                To Date
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Date To</label>
               <input
                 type="date"
                 value={dateTo}
@@ -184,33 +220,13 @@ const StockSearchEngine = () => {
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               />
             </div>
-
-            {/* View Mode */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <BarChart3 className="w-4 h-4 inline mr-1" />
-                View Mode
-              </label>
-              <select 
-                value={viewMode}
-                onChange={(e) => setViewMode(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="chart">Chart View</option>
-                <option value="table">Table View</option>
-                <option value="both">Both</option>
-              </select>
-            </div>
           </div>
 
-          {/* Metrics Selection */}
+          {/* Metrics */}
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              <Filter className="w-4 h-4 inline mr-1" />
-              Select Metrics to Display
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-3">Metrics</label>
             <div className="flex flex-wrap gap-3">
-              {['open', 'high', 'low', 'close', 'volume'].map(metric => (
+              {METRICS.map(metric => (
                 <label key={metric} className="flex items-center">
                   <input
                     type="checkbox"
@@ -224,46 +240,73 @@ const StockSearchEngine = () => {
             </div>
           </div>
 
-          {/* Search Button */}
           <button
             onClick={handleSearch}
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl"
+            disabled={selectedCompanies.length === 0}
+            className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Search Data
+            Search Data ({selectedCompanies.length} {selectedCompanies.length === 1 ? 'symbol' : 'symbols'})
           </button>
         </div>
 
+        {loading && <p className="text-blue-600 text-center text-lg">Loading...</p>}
+        {error && <p className="text-red-600 text-center text-lg">{error}</p>}
+
         {/* Results Section */}
-        {showResults && (
+        {showResults && stockData.length > 0 && (
           <div className="bg-white rounded-2xl shadow-xl p-8">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-gray-800">
-                Results for {selectedCompany || 'Selected Stock'} ({timeInterval} intervals)
+                Results for {selectedCompanies.join(', ')} ({interval} interval)
               </h2>
-              <button
-                onClick={downloadCSV}
-                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-              >
-                <Download className="w-4 h-4" />
-                Download CSV
-              </button>
+              <div className="flex gap-3">
+                <div className="relative">
+                  <select
+                    value={viewMode}
+                    onChange={(e) => setViewMode(e.target.value)}
+                    className="appearance-none bg-blue-600 text-white px-4 py-2 pr-10 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer font-medium"
+                  >
+                    <option value="chart">Chart View</option>
+                    <option value="table">Table View</option>
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-white">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+                <button onClick={downloadCSV} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">
+                  <Download className="w-4 h-4" />
+                  Download CSV
+                </button>
+              </div>
             </div>
 
             {/* Chart View */}
-            {(viewMode === 'chart' || viewMode === 'both') && (
+            {viewMode === 'chart' && (
               <div className="mb-8">
                 <h3 className="text-lg font-semibold mb-4">Price Chart</h3>
                 <div className="h-96">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={mockStockData}>
+                    <LineChart data={stockData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="time" />
-                      <YAxis domain={['dataMin - 0.1', 'dataMax + 0.1']} />
+                      <YAxis />
                       <Tooltip />
-                      {selectedMetrics.includes('open') && <Line type="monotone" dataKey="open" stroke="#8884d8" strokeWidth={2} />}
-                      {selectedMetrics.includes('high') && <Line type="monotone" dataKey="high" stroke="#82ca9d" strokeWidth={2} />}
-                      {selectedMetrics.includes('low') && <Line type="monotone" dataKey="low" stroke="#ffc658" strokeWidth={2} />}
-                      {selectedMetrics.includes('close') && <Line type="monotone" dataKey="close" stroke="#ff7300" strokeWidth={2} />}
+                      <Legend />
+                      {selectedCompanies.map(symbol => (
+                        selectedMetrics.includes('close') && (
+                          <Line
+                            key={`${symbol}-close`}
+                            type="monotone"
+                            dataKey="close"
+                            data={stockData.filter(d => d.symbol === symbol)}
+                            name={`${symbol} Close`}
+                            stroke={symbolColors[symbol] || '#8884d8'}
+                            strokeWidth={2}
+                          />
+                        )
+                      ))}
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -271,7 +314,7 @@ const StockSearchEngine = () => {
             )}
 
             {/* Table View */}
-            {(viewMode === 'table' || viewMode === 'both') && (
+            {viewMode === 'table' && (
               <div>
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                   <Table className="w-5 h-5" />
@@ -282,22 +325,24 @@ const StockSearchEngine = () => {
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="border border-gray-300 px-4 py-2 text-left font-semibold">Time</th>
-                        {selectedMetrics.includes('open') && <th className="border border-gray-300 px-4 py-2 text-left font-semibold">Open</th>}
-                        {selectedMetrics.includes('high') && <th className="border border-gray-300 px-4 py-2 text-left font-semibold">High</th>}
-                        {selectedMetrics.includes('low') && <th className="border border-gray-300 px-4 py-2 text-left font-semibold">Low</th>}
-                        {selectedMetrics.includes('close') && <th className="border border-gray-300 px-4 py-2 text-left font-semibold">Close</th>}
-                        {selectedMetrics.includes('volume') && <th className="border border-gray-300 px-4 py-2 text-left font-semibold">Volume</th>}
+                        <th className="border border-gray-300 px-4 py-2 text-left font-semibold">Symbol</th>
+                        {selectedMetrics.map(metric =>
+                          <th key={metric} className="border border-gray-300 px-4 py-2 text-left font-semibold">
+                            {metric.charAt(0).toUpperCase() + metric.slice(1)}
+                          </th>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
-                      {mockStockData.map((row, index) => (
+                      {stockData.map((row, index) => (
                         <tr key={index} className="hover:bg-gray-50">
                           <td className="border border-gray-300 px-4 py-2">{row.time}</td>
-                          {selectedMetrics.includes('open') && <td className="border border-gray-300 px-4 py-2">{row.open.toFixed(4)}</td>}
-                          {selectedMetrics.includes('high') && <td className="border border-gray-300 px-4 py-2">{row.high.toFixed(4)}</td>}
-                          {selectedMetrics.includes('low') && <td className="border border-gray-300 px-4 py-2">{row.low.toFixed(4)}</td>}
-                          {selectedMetrics.includes('close') && <td className="border border-gray-300 px-4 py-2">{row.close.toFixed(4)}</td>}
-                          {selectedMetrics.includes('volume') && <td className="border border-gray-300 px-4 py-2">{row.volume.toLocaleString()}</td>}
+                          <td className="border border-gray-300 px-4 py-2 font-semibold">{row.symbol}</td>
+                          {selectedMetrics.map(metric =>
+                            <td key={metric} className="border border-gray-300 px-4 py-2">
+                              {metric === 'volume' ? row[metric]?.toLocaleString() : (+row[metric]).toFixed(4)}
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
