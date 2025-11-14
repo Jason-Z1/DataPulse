@@ -1,0 +1,8 @@
+venv/
+etl_tmp/
+logs/
+*.parquet
+*.txt
+*.csv
+parse.py
+Test.py
