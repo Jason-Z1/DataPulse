@@ -116,7 +116,7 @@ SETUP INSTRUCTIONS
    .\venv\Scripts\Activate.ps1
 
    Install dependencies:
-   $ pip install -r ../requirements.txt
+   $ pip install -r requirements.txt
 
    Note: If Python 3.10 is not installed, install it first (instructions vary by OS)
 
