@@ -1,8 +1,6 @@
 FirstData/
 etl/etl_tmp/manifest.json
-etl_tmp/
 venv/
 logs/
 *.parquet
-*.txt
 *.csv
