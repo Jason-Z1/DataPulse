@@ -1,54 +1,145 @@
-          ┌──────────────────────────┐
-          │     React Frontend       │
-          │ (stock-search-app)       │
-          │                          │
-          │ Search bar, charts, UI   │
-          └──────────┬───────────────┘
-                     │  fetch()
-                     ▼
-          ┌──────────────────────────┐
-          │       Flask          │
-          │      (backend/)          │
-          ├──────────────────────────┤
-          │ /symbols?query=...       │
-          │ /timeseries?from=...     │
-          │ /aggregate?interval=...  │
-          │ /download?...            │
-          └──────────┬───────────────┘
-                     ▼
-        ┌──────────────────────────────┐
-        │Manifest.json Better for speed│
-        └──────────────────────────────┘
+PROJECT SETUP AND ARCHITECTURE GUIDE
+====================================
+
+DIRECTORY STRUCTURE
+-------------------
 
 project-root/
 ├── backend/
-│   ├── etl/                    ← ETL scripts (below)
-│   │   ├── 0_ingest.py
-│   ├── data/                   ← processed outputs (Parquet partitions)
-│   │   └── parquet/            ← final store (symbol=/year=/month=)
-│   └── requirements.txt
-└── FirstData/                  ← raw
-    ├── 1hr/
-    │   └── Historical_stock_full_K_1hour_adj_splitdiv.zip
-    └── 5min/
-        └── Historical_stock_full_K_5min_adj_splitdiv.zip
+│   ├── etl/
+│   │   ├── venv/                   # Python virtual environment (not in git)
+│   │   ├── 0_ingest.py             # Ingest script: creates manifest.json
+│   │   ├── query_api.py            # Flask API backend
+│   │   ├── etl_tmp/                # Manifest folder (not in git)
+│   │   │   └── manifest.json       # Index of processed files/locations
+│   ├── requirements.txt            # Python dependencies
+├── stock-search-app/               # React frontend
+│   ├── src/
+│   │   └── StockSearchEngine.jsx   # Main app component
+│   ├── package.json                # With proxy config to backend
+├── FirstData/                      # Raw data directory (not in git)
+│   ├── 1hr/
+│   └── 5min/
 
-Note Install the requirements.txt first
-Recomended to create an env then instal requirements.txt , then run 
-compatebility with python3.10
+
+ARCHITECTURE & DATA FLOW
+-------------------------
+
+┌─────────────────────────┐
+│ React Frontend          │
+│ (stock-search-app)      │
+│ - UI, fetch() via proxy │
+└───────┬─────────────────┘
+        │ /api/query_stock
+        ▼
+┌─────────────────────────────┐
+│ Flask Backend (query_api.py)│
+│ - Loads manifest.json       │
+│ - Returns JSON to frontend  │
+└───────┬─────────────────────┘
+        ▼
+┌─────────────────────────────┐
+│ Manifest.json (etl_tmp/)    │
+│  - Created by 0_ingest.py   │
+│  - Maps symbols/files/paths │
+└─────────────────────────────┘
+        ▼
+┌─────────────────────────────┐
+│ Data files (FirstData/)     │
+└─────────────────────────────┘
 
 
- Start Both Servers
-Open two terminals:
+SETUP INSTRUCTIONS
+------------------
 
-Terminal 1:
+1. PYTHON VERSION REQUIREMENTS
+   - Recommended: Python 3.10
+   - Compatibility optimized for Python 3.10
+   - Using other versions may cause dependency issues
+   - Note: Tested with Python 3.10
 
-bash
-cd backend/etl
-source venv/bin/activate
-python query_api.py
-Terminal 2:
 
-bash
-cd stock-search-app
-npm start
+2. BACKEND SETUP - VIRTUAL ENVIRONMENT & DEPENDENCIES
+
+   Navigate to backend ETL directory:
+   $ cd backend/etl
+
+   Create virtual environment with Python 3.10:
+   $ python3.10 -m venv venv
+
+   Activate virtual environment:
+   $ source venv/bin/activate
+
+   Install dependencies:
+   $ pip install -r ../requirements.txt
+
+   Note: If Python 3.10 is not installed, install it first (instructions vary by OS)
+
+
+3. MANIFEST SETUP
+
+   Create manifest directory:
+   $ mkdir -p etl_tmp
+
+   Run ingest script to create manifest.json:
+   $ python 0_ingest.py
+
+   This creates: etl_tmp/manifest.json
+
+
+4. START FLASK BACKEND
+
+   Ensure virtual environment is activated, then:
+   $ python query_api.py
+
+   Backend runs at: http://127.0.0.1:5000
+
+
+5. START REACT FRONTEND
+
+   Navigate to frontend directory:
+   $ cd ../../stock-search-app
+
+   Install npm dependencies:
+   $ npm install
+
+   Start development server:
+   $ npm start
+
+   Frontend runs at: http://localhost:3000
+   API calls proxied to Flask at http://127.0.0.1:5000
+   (Ensure package.json "proxy" matches backend address)
+
+
+ADDITIONAL NOTES
+----------------
+
+- Always install requirements.txt before running any scripts
+- Keep .gitignore updated to exclude:
+  * Large data files
+  * venv/ directory
+  * Data folders (FirstData/)
+  * etl_tmp/manifest.json
+  * node_modules/
+
+- Python Version: Tested with Python 3.10
+  Document this in README for collaborators
+
+- Data Separation: Keep raw data (FirstData/) separate from repository
+
+- Reproducibility: Virtual environment ensures consistent dependency versions
+
+
+WORKFLOW SUMMARY
+----------------
+
+1. Set up Python virtual environment
+2. Install Python dependencies
+3. Run ingest script to create manifest
+4. Start Flask backend
+5. Start React frontend
+6. Access application at localhost:3000
+
+
+This setup provides a reproducible environment for collaborative development
+and future deployment.
