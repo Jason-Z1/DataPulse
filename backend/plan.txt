@@ -102,10 +102,18 @@ SETUP INSTRUCTIONS
    $ cd backend/etl
 
    Create virtual environment with Python 3.10:
+   (Linux / MacOS)
    $ python3.10 -m venv venv
 
+   (Windwos)
+   $ python -m venv venv
+
    Activate virtual environment:
+   (Linux / MacOS)
    $ source venv/bin/activate
+
+   (Windows)
+   .\venv\Scripts\Activate.ps1
 
    Install dependencies:
    $ pip install -r ../requirements.txt
