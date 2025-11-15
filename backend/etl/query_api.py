@@ -5,23 +5,44 @@ import json
 
 app = Flask(__name__)
 
+# Manual CORS headers (more reliable than flask-cors sometimes)
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
+
 with open("etl_tmp/manifest.json") as f:
     manifest = json.load(f)
 
+@app.route('/api/test')
+def test_proxy():
+    return {'status': 'proxy works'}
+
+
 @app.route("/api/query_stock")
 def query_stock():
+    print("=== API ENDPOINT HIT ===")
+    print(f"Request args: {request.args}")
+    
     # Support multiple symbols/companies
     symbols = request.args.getlist('symbols[]')
+    print(f"Symbols: {symbols}")
+    
     # Fallback for old single symbol API
     if not symbols:
         symbol = request.args.get('symbol')
         if symbol:
             symbols = [symbol]
-
+    
     interval = request.args.get('interval')
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
     metrics = request.args.getlist('metrics[]')
+    
+    print(f"Interval: {interval}, Date from: {date_from}, Date to: {date_to}")
+    print(f"Metrics: {metrics}")
 
     all_results = []
     for symbol in symbols:
