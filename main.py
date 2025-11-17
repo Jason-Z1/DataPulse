@@ -4,6 +4,7 @@ from parser import parse
 from pathlib import Path
 import pyarrow as pa
 import pyarrow.csv as csv
+import argparse
 
 
 def find_file(symbol: str, increm: str) -> str:
@@ -26,15 +27,25 @@ def find_file(symbol: str, increm: str) -> str:
 if __name__ == "__main__":
       # path = find_file("AAPL", "1hour")
 
-      path = find_file("A", "5min")
+      path = find_file("AAPL", "5min")
       print("Resolved path:", path)
 
       if not Path(path).exists():
          raise FileNotFoundError(f"Data file not found at resolved path: {path}")
 
       # Use parser.parse which already handles reading and filtering
-      table = parse(path, start_time="2023-06-01 00:00:00", end_time="2023-06-29 15:50:00")
+      table = parse(path, start_time="2023-06-01 00:00:00", end_time="2023-12-29 15:50:00") # Change to more mutable values to take in from the front-end later in the process
       print(f"Loaded {table.num_rows} rows in the filtered version")
+
+      print("Schema:", table.schema)
+
+      N = table.num_rows
+
+      df = table.to_pandas()
+      # print(df.head(N).to_string(index=True))
+
+      with open("output.txt", "w") as output:
+         output.write(df.head(N).to_string(index=True))
 
 
 
