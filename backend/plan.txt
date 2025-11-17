@@ -1,0 +1,222 @@
+PROJECT SETUP AND ARCHITECTURE GUIDE
+====================================
+
+DIRECTORY STRUCTURE
+-------------------
+
+project-root/
+├── backend/
+│   ├── etl/
+│   │   ├── venv/                   # Python virtual environment (not in git)
+│   │   ├── 0_ingest.py             # Ingest script: creates manifest.json
+│   │   ├── query_api.py            # Flask API backend
+│   │   ├── etl_tmp/                # Manifest folder (not in git)
+│   │   │   └── manifest.json       # Index of processed files/locations
+│   │   ├── FirstData/              # Raw data directory (not in git)
+│   │   │   ├── 1hr/
+│   │   │   │   └── Historical_stock_full_A_1hour_adj_splitdiv/
+│   │   │   │       ├── A_full_1hour_adjsplitdiv.txt
+│   │   │   │       ├── AA_full_1hour_adjsplitdiv.txt
+│   │   │   │       ├── AAPL_full_1hour_adjsplitdiv.txt
+│   │   │   │       └── ... (other stock symbols)
+│   │   │   └── 5min/
+│   │   │       └── Historical_stock_full_A_5min_adj_splitdiv/
+│   │   │           ├── A_full_5min_adjsplitdiv.txt
+│   │   │           ├── AA_full_5min_adjsplitdiv.txt
+│   │   │           ├── AAPL_full_5min_adjsplitdiv.txt
+│   │   │           └── ... (other stock symbols)
+│   ├── requirements.txt            # Python dependencies
+├── stock-search-app/               # React frontend
+│   ├── src/
+│   │   └── StockSearchEngine.jsx   # Main app component
+│   ├── package.json                # With proxy config to backend
+
+
+DATA FOLDER STRUCTURE DETAILS
+------------------------------
+
+FirstData/
+├── 1hr/
+│   └── Historical_stock_full_A_1hour_adj_splitdiv/
+│       ├── A_full_1hour_adjsplitdiv.txt
+│       ├── AA_full_1hour_adjsplitdiv.txt
+│       ├── AAPL_full_1hour_adjsplitdiv.txt
+│       ├── GOOGL_full_1hour_adjsplitdiv.txt
+│       └── ... (one file per stock symbol)
+│
+└── 5min/
+    └── Historical_stock_full_A_5min_adj_splitdiv/
+        ├── A_full_5min_adjsplitdiv.txt
+        ├── AA_full_5min_adjsplitdiv.txt
+        ├── AAPL_full_5min_adjsplitdiv.txt
+        ├── GOOGL_full_5min_adjsplitdiv.txt
+        └── ... (one file per stock symbol)
+
+File Naming Convention:
+- 1hr data: {SYMBOL}_full_1hour_adjsplitdiv.txt
+- 5min data: {SYMBOL}_full_5min_adjsplitdiv.txt
+
+
+ARCHITECTURE & DATA FLOW
+-------------------------
+
+┌─────────────────────────┐
+│ React Frontend          │
+│ (stock-search-app)      │
+│ - UI, fetch() via proxy │
+└───────┬─────────────────┘
+        │ /api/query_stock
+        ▼
+┌─────────────────────────────┐
+│ Flask Backend (query_api.py)│
+│ - Loads manifest.json       │
+│ - Returns JSON to frontend  │
+└───────┬─────────────────────┘
+        ▼
+┌─────────────────────────────┐
+│ Manifest.json (etl_tmp/)    │
+│  - Created by 0_ingest.py   │
+│  - Maps symbols/files/paths │
+└─────────────────────────────┘
+        ▼
+┌─────────────────────────────┐
+│ Data files (FirstData/)     │
+│ - 1hr and 5min intervals    │
+│ - Adjusted for splits/divs  │
+└─────────────────────────────┘
+
+
+SETUP INSTRUCTIONS
+------------------
+
+1. PYTHON VERSION REQUIREMENTS
+   - Recommended: Python 3.10
+   - Compatibility optimized for Python 3.10
+   - Using other versions may cause dependency issues
+   - Note: Tested with Python 3.10
+
+
+2. BACKEND SETUP - VIRTUAL ENVIRONMENT & DEPENDENCIES
+
+   Navigate to backend ETL directory:
+   $ cd backend/etl
+
+   Create virtual environment with Python 3.10:
+   (Linux / MacOS)
+   $ python3.10 -m venv venv
+
+   (Windwos)
+   $ python -m venv venv
+
+   Activate virtual environment:
+   (Linux / MacOS)
+   $ source venv/bin/activate
+
+   (Windows)
+   .\venv\Scripts\Activate.ps1
+
+   Install dependencies:
+   $ pip install -r requirements.txt
+
+   Note: If Python 3.10 is not installed, install it first (instructions vary by OS)
+
+
+3. DATA SETUP
+
+   Ensure FirstData directory exists with proper structure:
+   $ mkdir -p FirstData/1hr/Historical_stock_full_A_1hour_adj_splitdiv
+   $ mkdir -p FirstData/5min/Historical_stock_full_A_5min_adj_splitdiv
+
+   Place your stock data files in the appropriate directories:
+   - 1hr data: FirstData/1hr/Historical_stock_full_A_1hour_adj_splitdiv/
+   - 5min data: FirstData/5min/Historical_stock_full_A_5min_adj_splitdiv/
+
+   Note: Data files follow naming pattern {SYMBOL}_full_{interval}_adjsplitdiv.txt
+
+
+4. MANIFEST SETUP
+
+   Create manifest directory:
+   $ mkdir -p etl_tmp
+
+   Run ingest script to create manifest.json:
+   $ python 0_ingest.py
+
+   This creates: etl_tmp/manifest.json
+   The manifest indexes all stock files from FirstData/ directories
+
+
+5. START FLASK BACKEND
+
+   Ensure virtual environment is activated, then:
+   $ python query_api.py
+
+   Backend runs at: http://127.0.0.1:5000
+
+
+6. START REACT FRONTEND
+
+   Navigate to frontend directory:
+   $ cd ../../stock-search-app
+
+   Install npm dependencies:
+   $ npm install
+
+   Start development server:
+   $ npm start
+
+   Frontend runs at: http://localhost:3000
+   API calls proxied to Flask at http://127.0.0.1:5000
+   (Ensure package.json "proxy" matches backend address)
+
+
+ADDITIONAL NOTES
+----------------
+
+- Always install requirements.txt before running any scripts
+
+- Keep .gitignore updated to exclude:
+  * Large data files
+  * venv/ directory
+  * FirstData/ directory and all subdirectories
+  * etl_tmp/manifest.json
+  * node_modules/
+  * __pycache__/
+
+- Python Version: Tested with Python 3.10
+  Document this in README for collaborators
+
+- Data Organization:
+  * Keep 1hr and 5min data in separate directories
+  * Files must follow naming convention for ingest script to work
+  * All data files are adjusted for splits and dividends
+
+- Manifest Creation:
+  * 0_ingest.py scans FirstData/ directories
+  * Creates index mapping symbols to file paths
+  * Must be regenerated if data files change
+
+- Reproducibility: Virtual environment ensures consistent dependency versions
+
+
+WORKFLOW SUMMARY
+----------------
+
+1. Set up Python virtual environment
+2. Install Python dependencies
+3. Create FirstData directories and add stock data files
+4. Run ingest script to create manifest
+5. Start Flask backend
+6. Start React frontend
+7. Access application at localhost:3000
+
+
+DATA FILE EXAMPLE PATHS
+------------------------
+
+Example 1hr data file:
+backend/etl/FirstData/1hr/Historical_stock_full_A_1hour_adj_splitdiv/AAPL_full_1hour_adjsplitdiv.txt
+
+Example 5min data file:
+backend/etl/FirstData/5min/Historical_stock_full_A_5min_adj_splitdiv/AAPL_full_5min_adjsplitdiv.txt
+

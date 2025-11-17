@@ -1,0 +1,6 @@
+FirstData/
+etl/etl_tmp/manifest.json
+venv/
+logs/
+*.parquet
+*.csv
