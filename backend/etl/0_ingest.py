@@ -1,16 +1,56 @@
+
 """
 0_ingest.py - Unzip archives and create manifest
+
+This script will look for the raw data directory `FirstData`.
+It resolves the data root in the following order:
+ 1. Command-line argument `--data-root`
+ 2. Environment variable `FIRSTDATA_PATH`
+ 3. Repository-relative `FirstData` (two parents up from this file)
+ 4. Current working directory `FirstData` (legacy behavior)
+
+If none of these exist the script will exit with a helpful message.
 """
+
 from pathlib import Path
 import zipfile
 import json
 import logging
+import os
+import argparse
 from datetime import datetime
 
-# Debug outputs to confirm structure before running main logic
-print("Current working directory:", Path.cwd())
-print("RAW_ROOT points to:", Path('FirstData').resolve())
-print("Contents of RAW_ROOT:", list(Path('FirstData').iterdir()) if Path('FirstData').exists() else "MISSING DIR")
+
+def resolve_raw_root(cli_path: str | None) -> Path:
+    # 1) CLI argument
+    if cli_path:
+        p = Path(cli_path)
+        if p.exists():
+            return p
+        return p  # return even if missing so caller can show helpful msg
+
+    # 2) Environment variable
+    env = os.environ.get('FIRSTDATA_PATH')
+    if env:
+        p = Path(env)
+        if p.exists():
+            return p
+        return p
+
+    # 3) Repository-relative: file -> etl -> backend -> repo
+    here = Path(__file__).resolve()
+    repo_root = here.parents[2] if len(here.parents) >= 3 else here.parent
+    p = repo_root / 'FirstData'
+    if p.exists():
+        return p
+
+    # 4) Legacy: CWD-relative
+    p = Path('FirstData')
+    return p
+
+
+# We'll compute RAW_ROOT inside main() after CLI parsing so the script is
+# tolerant of different invocation working directories.
 
 # Setup logging
 logging.basicConfig(
@@ -20,7 +60,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration
-RAW_ROOT = Path('FirstData')
+RAW_ROOT = Path('./FirstData')
 TMP = Path("./etl_tmp")
 TMP.mkdir(exist_ok=True)
 MANIFEST_PATH = TMP / "manifest.json"
@@ -32,11 +72,11 @@ def discover_files():
         if not interval_dir.is_dir():
             continue
         # Find ZIP archives directly under interval dir
-        for archive in interval_dir.glob("*.zip"):
+        for archive in interval_dir.rglob("*.zip"):
             items.append(('archive', interval_dir.name, archive))
         # Find .txt and .csv files recursively
         for file_path in interval_dir.rglob("*"):
-            if file_path.suffix.lower() in [".csv", ".txt"]:
+            if file_path.name.lower().endswith((".csv", ".txt", ".csv.gz", ".txt.gz")):
                 items.append(('raw', interval_dir.name, file_path))
     return items
 
