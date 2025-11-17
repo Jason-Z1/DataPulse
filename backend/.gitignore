@@ -4,3 +4,4 @@ venv/
 logs/
 *.parquet
 *.csv
+.DS_Store

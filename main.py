@@ -1,30 +1,51 @@
 import os
 
 from parser import parse
-
+from pathlib import Path
 import pyarrow as pa
 import pyarrow.csv as csv
+import argparse
 
-# Finds the file directory
-# Is subjected to change in form if we decide to use a different structure layout for data
+
 def find_file(symbol: str, increm: str) -> str:
-   alpha = symbol[0]
-   path = "../" + increm + "/FirstData/Downloaded_March15/Historical_stock_full_" + alpha + "_" + increm + "_adj_splitdiv.zip/"
-   path += symbol + "_full_" + increm + "_adjsplitdiv.txt/"
-   return path
+      """Resolve the extracted file path in `etl_tmp`.
+
+      Expected layout (existing in this workspace):
+         etl_tmp/Download_March15/Historical_stock_full_{ALPHA}_{increm}_adj_splitdiv/{SYMBOL}_full_{increm}_adjsplitdiv.txt
+
+      Returns an absolute path string.
+      """
+      alpha = symbol[0].upper()
+      # For a file at repo root `Path(__file__).resolve().parent` is the repo root.
+      base = Path(__file__).resolve().parent
+      # folder under etl_tmp in this repo
+      rel = Path("etl_tmp") / "Download_March15" / f"Historical_stock_full_{alpha}_{increm}_adj_splitdiv"
+      p = (base / rel / f"{symbol}_full_{increm}_adjsplitdiv.txt").resolve()
+      return str(p)
 
 
 if __name__ == "__main__":
-   # path = find_file("AAPL", "1hour")
+      # path = find_file("AAPL", "1hour")
 
-   path = "../FirstData/AA_full_5min_adjsplitdiv.txt"
+      path = find_file("AAPL", "5min")
+      print("Resolved path:", path)
 
-   table = csv.read_csv(path)
-   print(f"Loaded {path} with {len(table)} rows")
+      if not Path(path).exists():
+         raise FileNotFoundError(f"Data file not found at resolved path: {path}")
 
-   table = parse(path, start_time="2023-06-01 00:00:00", end_time="2023-12-29 15:50:00")
+      # Use parser.parse which already handles reading and filtering
+      table = parse(path, start_time="2023-06-01 00:00:00", end_time="2023-12-29 15:50:00") # Change to more mutable values to take in from the front-end later in the process
+      print(f"Loaded {table.num_rows} rows in the filtered version")
 
-   print(f"Loaded {len(table)} rows in the filtered version")
+      print("Schema:", table.schema)
+
+      N = table.num_rows
+
+      df = table.to_pandas()
+      # print(df.head(N).to_string(index=True))
+
+      with open("output.txt", "w") as output:
+         output.write(df.head(N).to_string(index=True))
 
 
 
