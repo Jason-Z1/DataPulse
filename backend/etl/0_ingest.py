@@ -60,7 +60,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration
-RAW_ROOT = Path('./FirstData')
+RAW_ROOT = Path('../FirstData')
 TMP = Path("./etl_tmp")
 TMP.mkdir(exist_ok=True)
 MANIFEST_PATH = TMP / "manifest.json"
