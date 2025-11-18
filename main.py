@@ -27,7 +27,7 @@ def find_file(symbol: str, increm: str) -> str:
 if __name__ == "__main__":
       # path = find_file("AAPL", "1hour")
 
-      path = find_file("AAPL", "5min")
+      path = find_file("AAPL", "1hour")
       print("Resolved path:", path)
 
       if not Path(path).exists():
@@ -45,7 +45,7 @@ if __name__ == "__main__":
       # print(df.head(N).to_string(index=True))
 
       with open("output.txt", "w") as output:
-         output.write(df.head(N).to_string(index=True))
+         output.write(df.head(N).to_string(index=False))
 
 
 

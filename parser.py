@@ -81,10 +81,5 @@ def parse(file_path: str, start_time: Optional[str] = None, end_time: Optional[s
             for f in filters[1:]:
                 combined_filter = pc.and_(combined_filter, f)
             table = table.filter(combined_filter)
-
     return table
     
-
-
-
-
