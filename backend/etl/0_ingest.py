@@ -19,6 +19,7 @@ import logging
 import os
 import argparse
 from datetime import datetime
+import pandas as pd
 
 
 def resolve_raw_root(cli_path: str | None) -> Path:
@@ -65,8 +66,59 @@ TMP = Path("./etl_tmp")
 TMP.mkdir(exist_ok=True)
 MANIFEST_PATH = TMP / "manifest.json"
 
+OUTPUT_DIR = Path('etl_tmp/') # Directory to store the Parquet files
+PARQUET_FILE = OUTPUT_DIR / "file_metadata.parquet" # The Parquet file to store metadata
+
+def unzip_and_extract():
+    # List to hold metadata for all the files
+    file_metadata = []
+
+    # Iterate over the interval folders (1hr, 5min, 1d)
+    for interval_archive in RAW_ROOT.glob("*.zip"):
+        # Extracts the contents of the archived
+        with zipfile.ZipFile(interval_archive, 'r') as zip_ref:
+            # Extract the contents of the archive
+            interval_name = interval_archive.stem # e.g. "1hour", "5min"
+            extracted_dir = OUTPUT_DIR / interval_name # Target extraction directory
+            os.makedirs(extracted_dir, exist_ok=True)
+            zip_ref.extractall(extracted_dir) # Extract the archived content
+
+            download_dir = extracted_dir / "FirstData" / "Downloaded_March15"
+            if(download_dir.exists() and download_dir.is_dir()):
+                # Process all the stock company zip files inside "Download_march15"
+                for company_zip in download_dir.glob("*zip"):
+                    with zipfile.ZipFile(company_zip, 'r') as company_zip_ref:
+                        # Extract the company files
+                        company_target_dir = extracted_dir / "FirstData" / company_zip.stem
+                        os.makedirs(company_target_dir, exist_ok=True)
+                        company_zip_ref.extractall(company_target_dir)
+
+                        # Process each extracted CSV file (assuming CSV format)
+                        for extracted_file in company_target_dir.glob("*.csv"):
+                            # Extract metadata: time interval, symbol, path, and file size
+                            symbol = extracted_file.stem.split('_')[0]  # e.g., AAPL from AAPL_1hr.csv
+                            path_from_root = extracted_file.relative_to(RAW_ROOT)  # Relative path from ROOT
+                            byte_size = extracted_file.stat().st_size  # File size in bytes
+                            
+                            # Append metadata to the list
+                            file_metadata.append({
+                                "time_interval": interval_name,  # "1hr", "5min", etc.
+                                "symbol": symbol,
+                                "path_from_root": str(path_from_root),
+                                "byte_size": byte_size
+                            })
+                            print(f"Processed: {symbol}, {interval_name}, {path_from_root}, {byte_size} bytes")
+    
+     # Convert the metadata list to a DataFrame
+    df = pd.DataFrame(file_metadata)
+    
+    # Save the metadata DataFrame to a Parquet file
+    df.to_parquet(PARQUET_FILE, index=False)
+    print(f"Metadata saved to {PARQUET_FILE}")
+
+"""
 def discover_files():
-    """Find all TXT, CSV files and ZIP archives in all interval subfolders, recursively."""
+    # Find all TXT, CSV files and ZIP archives in all interval subfolders, recursively.
     items = []
     for interval_dir in RAW_ROOT.iterdir():
         if not interval_dir.is_dir():
@@ -81,7 +133,7 @@ def discover_files():
     return items
 
 def unzip_archive(archive_path, outdir):
-    """Extract ZIP archive with error handling."""
+    # Extract ZIP archive with error handling 
     try:
         with zipfile.ZipFile(archive_path) as z:
             bad_file = z.testzip()
@@ -97,8 +149,10 @@ def unzip_archive(archive_path, outdir):
     except Exception as e:
         logger.error(f"Error extracting {archive_path}: {e}")
         return False
+"""
 
 def main():
+    """
     logger.info("="*60)
     logger.info("Starting data ingestion process")
     logger.info("="*60)
@@ -149,6 +203,8 @@ def main():
     logger.info("="*60)
     logger.info(f"Ingestion complete: {len(manifest_files)} files indexed")
     logger.info("="*60)
+    """
+    unzip_and_extract()
 
 if __name__ == "__main__":
     main()
