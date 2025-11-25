@@ -25,8 +25,6 @@ def find_file(symbol: str, increm: str) -> str:
 
 
 if __name__ == "__main__":
-      # path = find_file("AAPL", "1hour")
-
       path = find_file("AAPL", "1hour")
       print("Resolved path:", path)
 

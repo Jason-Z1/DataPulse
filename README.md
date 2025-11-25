@@ -192,9 +192,15 @@ Ejects from Create React App for full configuration control.
 
 4. **main.py** - finds the file path for the given symbol and time increment. Once the file path is found, the script will use PyArrow to efficiently parse through the file to find stock data from *Time Start* to *Time End*. 
 
+- Currently working on processing multiple stock company inputs
+- Also planning on outputing visualization of the data using NumPy
+- Currently takes the data that *parser.py* returns and outputs it into an output.txt file (can be adapted to other forms)
+
+5. **parser.py** - is the helper class for main.py. It contains the function to parse any csv/txt file given to it and returns a table of the filtered data
+
 ---
 This section is going to be scrapped for now, will be considered for further optimizations in the future
 
-4. **etl_ohlvc.py** - the script that will normalize the data (read raw -> write data)
+6. **etl_ohlvc.py** - the script that will normalize the data (read raw -> write data)
   * Input is the data from ../raw/ and the output is going to ../data/ where the data will be stored in a Parquet file
 ---
