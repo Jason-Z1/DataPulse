@@ -204,3 +204,10 @@ This section is going to be scrapped for now, will be considered for further opt
 6. **etl_ohlvc.py** - the script that will normalize the data (read raw -> write data)
   * Input is the data from ../raw/ and the output is going to ../data/ where the data will be stored in a Parquet file
 ---
+
+
+## Issues:
+
+- *ingest.py* is getting the wrong interval values
+- *ingest.py* should probably also just create the parquet files and clean the data then delete the zip files once its done running just for maximum efficiency. Also for the search implementation. If we want an autocomplete feature, it would be easier to clean the data/columnarize it for easier look-up of the *Stock Company Symbol*.
+- Not sure which we are using, because it seems *parser.py*/*main.py* is doing the same thing at *0_ingest.py*/*query_api.y*. Only difference is the way that they are filtering the data
