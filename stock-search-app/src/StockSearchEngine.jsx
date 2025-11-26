@@ -20,6 +20,9 @@ const StockSearchEngine = () => {
 
   const companies = [
     { symbol: 'AAPL', name: 'Apple Inc.', tags: ['Technology', 'Consumer Electronics', 'Large Cap', 'Blue Chip'] },
+    { symbol: 'BWA', name: '.', tags: ['Technology', 'Consumer Electronics', 'Large Cap', 'Blue Chip'] },
+    { symbol: 'BUSE', name: '.', tags: ['Technology', 'Consumer Electronics', 'Large Cap', 'Blue Chip'] },
+
     { symbol: 'GOOGL', name: 'Alphabet Inc.', tags: ['Technology', 'Search Engine', 'Cloud Computing', 'Large Cap'] },
     { symbol: 'TSLA', name: 'Tesla Inc.', tags: ['Automotive', 'Electric Vehicles', 'Clean Energy', 'Growth'] },
     { symbol: 'MSFT', name: 'Microsoft Corp.', tags: ['Technology', 'Software', 'Cloud Computing', 'Large Cap'] },
