@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Download, TrendingUp, Table, X } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
-const INTERVALS = ["1hr", "5min", "1d", "1w"];
+const INTERVALS = ["1hour", "5min", "1d", "1w"];
 const METRICS = ["open", "high", "low", "close", "volume"];
 
 const StockSearchEngine = () => {
