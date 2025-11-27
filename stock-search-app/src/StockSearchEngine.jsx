@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Download, TrendingUp, Table, X } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
@@ -7,7 +7,7 @@ const METRICS = ["open", "high", "low", "close", "volume"];
 
 const StockSearchEngine = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCompanies, setSelectedCompanies] = useState([]); // Array of symbols
+  const [selectedCompanies, setSelectedCompanies] = useState([]);
   const [interval, setInterval] = useState("1hr");
   const [dateFrom, setDateFrom] = useState('2005-01-01');
   const [dateTo, setDateTo] = useState('2005-01-10');
@@ -17,20 +17,38 @@ const StockSearchEngine = () => {
   const [stockData, setStockData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [companies, setCompanies] = useState([]);
+  const [loadingSymbols, setLoadingSymbols] = useState(true);
 
-  const companies = [
-    { symbol: 'AAPL', name: 'Apple Inc.', tags: ['Technology', 'Consumer Electronics', 'Large Cap', 'Blue Chip'] },
-    { symbol: 'GOOGL', name: 'Alphabet Inc.', tags: ['Technology', 'Search Engine', 'Cloud Computing', 'Large Cap'] },
-    { symbol: 'TSLA', name: 'Tesla Inc.', tags: ['Automotive', 'Electric Vehicles', 'Clean Energy', 'Growth'] },
-    { symbol: 'MSFT', name: 'Microsoft Corp.', tags: ['Technology', 'Software', 'Cloud Computing', 'Large Cap'] },
-    { symbol: 'AMZN', name: 'Amazon.com Inc.', tags: ['E-commerce', 'Cloud Computing', 'Large Cap', 'Growth'] }
-  ];
+  useEffect(() => {
+    const fetchSymbols = async () => {
+      try {
+        setLoadingSymbols(true);
+        const response = await fetch('/api/manifest');
+        const manifest = await response.json();
+        
+        const formatted = manifest.all_tags.map(tag => ({
+          symbol: tag,
+          name: tag,
+          tags: [tag]
+        }));
+        
+        setCompanies(formatted);
+        setLoadingSymbols(false);
+      } catch (err) {
+        console.error("Failed to load symbols from manifest", err);
+        setError('Failed to load ticker symbols. Please ensure Flask is running');
+        setLoadingSymbols(false);
+      }
+    };
 
-  // Color palette for different symbols
+    fetchSymbols();
+  }, []);
+
   const symbolColors = {
     'AAPL': '#8884d8',
-    'GOOGL': '#82ca9d',
-    'TSLA': '#ffc658',
+    'AA': '#82ca9d',
+    'A': '#ffc658',
     'MSFT': '#ff7300',
     'AMZN': '#a4de6c'
   };
@@ -99,9 +117,7 @@ const StockSearchEngine = () => {
   };
 
   const filteredCompanies = companies.filter(company =>
-    company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    company.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    company.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
+    company.symbol.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -127,19 +143,23 @@ const StockSearchEngine = () => {
           </h2>
 
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Company Symbols</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Company Symbols {loadingSymbols && <span className="text-blue-600 text-xs">(Loading...)</span>}
+              {!loadingSymbols && <span className="text-gray-500 text-xs">({companies.length} available)</span>}
+            </label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search company symbol, name, or tag"
+                placeholder="Search ticker symbol (e.g., AAPL, TSLA, MSFT)"
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                disabled={loadingSymbols}
               />
-              {searchQuery && (
+              {searchQuery && filteredCompanies.length > 0 && (
                 <div className="mt-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto absolute w-full z-10">
-                  {filteredCompanies.map(company => (
+                  {filteredCompanies.slice(0, 50).map(company => (
                     <div
                       key={company.symbol}
                       onClick={() => {
@@ -150,20 +170,16 @@ const StockSearchEngine = () => {
                         );
                         setSearchQuery('');
                       }}
-                      className="p-4 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                      className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
                     >
-                      <div>
-                        <div className="font-semibold text-gray-800">{company.symbol} - {company.name}</div>
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {company.tags.map(tag => (
-                            <span key={tag} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
+                      <div className="font-semibold text-gray-800">{company.symbol}</div>
                     </div>
                   ))}
+                  {filteredCompanies.length > 50 && (
+                    <div className="p-3 text-sm text-gray-500 text-center">
+                      Showing first 50 of {filteredCompanies.length} results
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -242,7 +258,7 @@ const StockSearchEngine = () => {
 
           <button
             onClick={handleSearch}
-            disabled={selectedCompanies.length === 0}
+            disabled={selectedCompanies.length === 0 || loadingSymbols}
             className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Search Data ({selectedCompanies.length} {selectedCompanies.length === 1 ? 'symbol' : 'symbols'})

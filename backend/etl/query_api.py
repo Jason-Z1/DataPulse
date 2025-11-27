@@ -20,13 +20,15 @@ with open("etl_tmp/manifest.json") as f:
 def test_proxy():
     return {'status': 'proxy works'}
 
+@app.route('/api/manifest')
+def get_manifest():
+    return jsonify(manifest)
 
 @app.route("/api/query_stock")
 def query_stock():
     print("=== API ENDPOINT HIT ===")
     print(f"Request args: {request.args}")
     
-    # Support multiple symbols/companies
     symbols = request.args.getlist('symbols[]')
     print(f"Symbols: {symbols}")
     
