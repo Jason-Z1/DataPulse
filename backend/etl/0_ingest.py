@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import argparse
+import shutil
 from datetime import datetime
 
 
@@ -102,11 +103,12 @@ def discover_files(raw_root):
             for file_path in interval_dir.rglob("*"):
                 if file_path.name.lower().endswith((".csv", ".txt", ".csv.gz", ".txt.gz")):
                     items.append(('raw', interval, file_path))
+        
         elif interval_dir.is_file():
             # Top-level file. If it's a zip, treat it as an archive with interval = stem
             if interval_dir.suffix.lower() == ".zip" or zipfile.is_zipfile(interval_dir):
                 interval = interval_dir.stem
-                items.append(("arhcive", interval, interval_dir))
+                items.append(("archive", interval, interval_dir))
             # Top-level raw files e.g. AAPL_full_1hour_adjsplitdiv.txt directly at raw_root
             elif interval_dir.suffix.lower() in DATA_EXT:
                 # Interval unknown from filename -- set to empty for now
@@ -162,20 +164,28 @@ def main():
        logger.warning("No TXT/CSV or ZIP files found!")
        return
 
-
    extracted_data = []
    manifest_files = []
 
 
    for item_type, interval, path in items:
        if item_type == 'archive':
-           outdir = TMP / interval / path.stem
+           # If the archive stem matches the interval (e.g. '1hour')
+           if path.stem == interval or not path.stem:
+               outdir = TMP / interval
+           else:
+               outdir = TMP / interval / path.stem
            outdir.mkdir(parents=True, exist_ok=True)
            success = unzip_archive(path, outdir)
            extracted_data.append((interval, path.name, outdir, success))
            if success:
-               for file in Path(outdir).rglob("*"):
-                   if file.suffix.lower() in [".csv", ".txt"]:
+                def _is_data_file(p: Path) -> bool:
+                   n = p.name.lower()
+                   return n.endswith('.csv') or n.endswith('.txt') or n.endswith('.csv.gz') or n.endswith('.txt.gz')
+
+                # 1) Collect any data files directly present after extracting the archive
+                for file in Path(outdir).rglob("*"):
+                   if _is_data_file(file):
                        manifest_files.append({
                            "path": str(file),
                            "size_bytes": file.stat().st_size,
@@ -183,6 +193,30 @@ def main():
                            "archive": path.name,
                            "filename": file.name
                        })
+                
+                # 2) Extract any nested company ZIP files and collect their data files
+                for company_zip in Path(outdir).rglob("*.zip"):
+                    try:
+                       company_target_dir = Path(outdir) / company_zip.stem
+                       company_target_dir.mkdir(parents=True, exist_ok=True)
+                       nested_success = unzip_archive(company_zip, company_target_dir)
+                       if nested_success:
+                           for f in company_target_dir.rglob("*"):
+                               if _is_data_file(f):
+                                   manifest_files.append({
+                                       "path": str(f),
+                                       "size_bytes": f.stat().st_size,
+                                       "interval": interval,
+                                       "archive": company_zip.name,
+                                       "filename": f.name
+                                   })
+                    except Exception:
+                       logger.exception(f"Failed processing nested zip: {company_zip}")
+                # Removes leftover FirstData folder that contains the initial zip copies
+                firstdata_dir = outdir / "FirstData"
+                if firstdata_dir.exists():
+                    shutil.rmtree(firstdata_dir)
+                    logger.info(f"Removed duplicate archive tree: {firstdata_dir}")
        elif item_type == 'raw':
            manifest_files.append({
                "path": str(path),
