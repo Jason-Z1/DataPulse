@@ -24,7 +24,6 @@ from datetime import datetime
 
 
 
-
 def resolve_raw_root(cli_path: str | None) -> Path:
    # 1) CLI argument
    if cli_path:
@@ -61,12 +60,8 @@ def resolve_raw_root(cli_path: str | None) -> Path:
    p = Path('FirstData')
    return p
 
-
-
-
 # We'll compute RAW_ROOT inside main() after CLI parsing so the script is
 # tolerant of different invocation working directories.
-
 
 # Setup logging
 logging.basicConfig(
@@ -80,7 +75,6 @@ logger = logging.getLogger(__name__)
 TMP = Path("./etl_tmp")
 TMP.mkdir(exist_ok=True)
 MANIFEST_PATH = TMP / "manifest.json"
-
 
 
 

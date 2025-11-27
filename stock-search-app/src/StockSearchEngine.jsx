@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { Search, Download, TrendingUp, Table, X } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
-const INTERVALS = ["1hr", "5min", "1d", "1w"];
+const INTERVALS = ["1hour", "5min", "1d", "1w"];
 const METRICS = ["open", "high", "low", "close", "volume"];
 
 const StockSearchEngine = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCompanies, setSelectedCompanies] = useState([]); // Array of symbols
-  const [interval, setInterval] = useState("1hr");
+  const [interval, setInterval] = useState("1hour");
   const [dateFrom, setDateFrom] = useState('2005-01-01');
   const [dateTo, setDateTo] = useState('2005-01-10');
   const [selectedMetrics, setSelectedMetrics] = useState([...METRICS]);
