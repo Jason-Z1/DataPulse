@@ -1,18 +1,6 @@
 """
-0_ingest.py - Unzip archives and create manifest
-
-
-This script will look for the raw data directory `FirstData`.
-It resolves the data root in the following order:
-1. Command-line argument `--data-root`
-2. Environment variable `FIRSTDATA_PATH`
-3. Repository-relative `FirstData` (two parents up from this file)
-4. Current working directory `FirstData` (legacy behavior)
-
-
-If none of these exist the script will exit with a helpful message.
+0_ingest.py - Unzip archives and create manifest with ticker tags
 """
-
 
 from pathlib import Path
 import zipfile
@@ -56,24 +44,13 @@ def resolve_raw_root(cli_path: str | None) -> Path:
     p = Path('FirstData')
     return p
 
-   # 4) Repository-relative: file -> etl -> backend -> repo
-   repo_root = here.parents[2] if len(here.parents) >= 3 else here.parent
-   p = repo_root / 'FirstData'
-   if p.exists():
-       return p
-
-
-   # 5) Legacy: CWD-relative
-   p = Path('FirstData')
-   return p
 
 # Setup logging
 logging.basicConfig(
-   level=logging.INFO,
-   format='%(asctime)s - %(levelname)s - %(message)s'
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
 
 # Configuration
 TMP = Path("etl_tmp")
@@ -211,6 +188,7 @@ def main():
     
     logger.info(f"Manifest created with {len(manifest['files'])} files")
     logger.info(f"Found {len(unique_tags)} unique tags (ticker symbols)")
+    logger.info(f"Top 10 tickers: {tag_counts.most_common(10)}")
     logger.info(f"Manifest saved to: {MANIFEST_PATH}")
 
     logger.info("="*60)
