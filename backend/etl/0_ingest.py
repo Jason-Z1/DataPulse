@@ -77,21 +77,42 @@ TMP.mkdir(exist_ok=True)
 MANIFEST_PATH = TMP / "manifest.json"
 
 
+"""
+This function checks for both zip and unzipped folders in the directory of ./FirstData, so make sure that if there
+are zip/unzipped duplicates you remove them before running.
+"""
+
+DATA_EXT = {".txt", ".csv", ".parquet", ".pq"}
 
 def discover_files(raw_root):
    # Find all TXT, CSV files and ZIP archives in all interval subfolders, recursively.
-   items = []
-   for interval_dir in raw_root.iterdir():
-       if not interval_dir.is_dir():
-           continue
-       # Find ZIP archives directly under interval dir
-       for archive in interval_dir.rglob("*.zip"):
-           items.append(('archive', interval_dir.name, archive))
-       # Find .txt and .csv files recursively
-       for file_path in interval_dir.rglob("*"):
-           if file_path.name.lower().endswith((".csv", ".txt", ".csv.gz", ".txt.gz")):
-               items.append(('raw', interval_dir.name, file_path))
-   return items
+    items = []
+    for interval_dir in sorted(raw_root.iterdir()):
+        interval = interval_dir.name
+        if interval_dir.is_dir():
+             # Find ZIP archives directly under interval dir
+            for archive in interval_dir.rglob("*.zip"):
+                items.append(('archive', interval, archive))
+            # Finds any nested archives anywhere under the interval dir
+            for nested_archive in interval_dir.rglob("*.zip"):
+                if nested_archive.parent == interval_dir:
+                    pass # Already added the top-level zip
+                items.append(("archive", interval, nested_archive))
+            # Find .txt and .csv files recursively
+            for file_path in interval_dir.rglob("*"):
+                if file_path.name.lower().endswith((".csv", ".txt", ".csv.gz", ".txt.gz")):
+                    items.append(('raw', interval, file_path))
+        elif interval_dir.is_file():
+            # Top-level file. If it's a zip, treat it as an archive with interval = stem
+            if interval_dir.suffix.lower() == ".zip" or zipfile.is_zipfile(interval_dir):
+                interval = interval_dir.stem
+                items.append(("arhcive", interval, interval_dir))
+            # Top-level raw files e.g. AAPL_full_1hour_adjsplitdiv.txt directly at raw_root
+            elif interval_dir.suffix.lower() in DATA_EXT:
+                # Interval unknown from filename -- set to empty for now
+                items.append(("raw", "", interval_dir))
+        
+    return items
 
 
 def unzip_archive(archive_path, outdir):
