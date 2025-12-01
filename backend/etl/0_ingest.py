@@ -58,21 +58,17 @@ TMP.mkdir(exist_ok=True)
 MANIFEST_PATH = TMP / "manifest.json"
 
 
-def extract_tags_from_filename(filename):
+def extract_tags_from_filename(filename: str):
     """
     Extract ticker symbol (everything before first underscore) as the tag.
     Example: AACT_full_5min_adjsplitdiv.txt -> 'AACT'
     """
-    # Remove file extension
     name = filename.rsplit('.', 1)[0]
-    
-    # Get everything before first underscore
     tag = name.split('_')[0]
-    
     return [tag] if tag else []
 
 
-def discover_files(raw_root):
+def discover_files(raw_root: Path):
     # Find all TXT, CSV files and ZIP archives in all interval subfolders, recursively.
     items = []
     for interval_dir in raw_root.iterdir():
@@ -88,7 +84,7 @@ def discover_files(raw_root):
     return items
 
 
-def unzip_archive(archive_path, outdir):
+def unzip_archive(archive_path: Path, outdir: Path) -> bool:
     # Extract ZIP archive with error handling
     try:
         with zipfile.ZipFile(archive_path) as z:
@@ -111,10 +107,10 @@ def main():
     parser = argparse.ArgumentParser(description='Ingest stock data and create manifest')
     parser.add_argument('--data-root', type=str, help='Path to FirstData directory')
     args = parser.parse_args()
-    
+
     # Resolve the raw data root
     RAW_ROOT = resolve_raw_root(args.data_root)
-    
+
     if not RAW_ROOT.exists():
         logger.error(f"❌ Data directory not found: {RAW_ROOT}")
         logger.error("Please ensure FirstData exists in one of these locations:")
@@ -123,11 +119,11 @@ def main():
         logger.error("  3. Place in repository root as 'FirstData'")
         logger.error("  4. Place in current directory as 'FirstData'")
         return
-    
+
     logger.info(f"Using data root: {RAW_ROOT}")
-    logger.info("="*60)
+    logger.info("=" * 60)
     logger.info("Starting data ingestion process")
-    logger.info("="*60)
+    logger.info("=" * 60)
 
     items = discover_files(RAW_ROOT)
     if not items:
@@ -149,26 +145,26 @@ def main():
                     if file.suffix.lower() in [".csv", ".txt"]:
                         tags = extract_tags_from_filename(file.name)
                         all_tags.extend(tags)
-                        
+
                         manifest_files.append({
                             "path": str(file),
                             "size_bytes": file.stat().st_size,
                             "interval": interval,
                             "archive": path.name,
                             "filename": file.name,
-                            "tags": tags
+                            "tags": tags,
                         })
         elif item_type == 'raw':
             tags = extract_tags_from_filename(path.name)
             all_tags.extend(tags)
-            
+
             manifest_files.append({
                 "path": str(path),
                 "size_bytes": path.stat().st_size,
                 "interval": interval,
                 "archive": None,
                 "filename": path.name,
-                "tags": tags
+                "tags": tags,
             })
 
     # Get unique tags and counts
@@ -180,20 +176,20 @@ def main():
         "created_at": datetime.now().isoformat(),
         "files": manifest_files,
         "all_tags": unique_tags,
-        "tag_counts": dict(tag_counts)
+        "tag_counts": dict(tag_counts),
     }
-    
+
     with open(MANIFEST_PATH, 'w') as f:
         json.dump(manifest, f, indent=2)
-    
+
     logger.info(f"Manifest created with {len(manifest['files'])} files")
     logger.info(f"Found {len(unique_tags)} unique tags (ticker symbols)")
     logger.info(f"Top 10 tickers: {tag_counts.most_common(10)}")
     logger.info(f"Manifest saved to: {MANIFEST_PATH}")
 
-    logger.info("="*60)
+    logger.info("=" * 60)
     logger.info(f"Ingestion complete: {len(manifest_files)} files indexed")
-    logger.info("="*60)
+    logger.info("=" * 60)
 
 
 if __name__ == "__main__":
