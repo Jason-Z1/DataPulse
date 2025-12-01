@@ -1,6 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Download, TrendingUp, Table, X } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+  Brush,
+} from 'recharts';
 
 const INTERVALS = ["1hour", "5min", "1d", "1w"];
 const METRICS = ["open", "high", "low", "close", "volume"];
@@ -26,13 +36,13 @@ const StockSearchEngine = () => {
         setLoadingSymbols(true);
         const response = await fetch('/api/manifest');
         const manifest = await response.json();
-        
+
         const formatted = manifest.all_tags.map(tag => ({
           symbol: tag,
           name: tag,
-          tags: [tag]
+          tags: [tag],
         }));
-        
+
         setCompanies(formatted);
         setLoadingSymbols(false);
       } catch (err) {
@@ -50,7 +60,7 @@ const StockSearchEngine = () => {
     'AA': '#82ca9d',
     'A': '#ffc658',
     'MSFT': '#ff7300',
-    'AMZN': '#a4de6c'
+    'AMZN': '#a4de6c',
   };
 
   const handleSearch = async () => {
@@ -58,7 +68,7 @@ const StockSearchEngine = () => {
       setError('Please select at least one company symbol.');
       return;
     }
-    
+
     setShowResults(false);
     setLoading(true);
     setError('');
@@ -67,7 +77,7 @@ const StockSearchEngine = () => {
       `interval=${interval}`,
       `date_from=${dateFrom}`,
       `date_to=${dateTo}`,
-      ...selectedMetrics.map(m => `metrics[]=${m}`)
+      ...selectedMetrics.map(m => `metrics[]=${m}`),
     ].join('&');
     try {
       const res = await fetch(`/api/query_stock?${params}`);
@@ -105,7 +115,7 @@ const StockSearchEngine = () => {
       headers.join(','),
       ...stockData.map(row =>
         [row.time, row.symbol, ...selectedMetrics.map(metric => row[metric])].join(',')
-      )
+      ),
     ].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -120,6 +130,13 @@ const StockSearchEngine = () => {
     company.symbol.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Simple date formatter for X axis: show only YYYY-MM-DD
+  const formatTimeTick = (value) => {
+    if (!value) return '';
+    // value is an ISO string from backend; keep the date part
+    return String(value).slice(0, 10);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
       <div className="bg-white shadow-sm border-b">
@@ -130,7 +147,9 @@ const StockSearchEngine = () => {
               FinanceSearch Pro
             </h1>
           </div>
-          <p className="text-gray-600 mt-2">Advanced stock data search with customizable metrics and intervals</p>
+          <p className="text-gray-600 mt-2">
+            Advanced stock data search with customizable metrics and intervals
+          </p>
         </div>
       </div>
 
@@ -183,12 +202,15 @@ const StockSearchEngine = () => {
                 </div>
               )}
             </div>
-            
+
             {/* Selected Companies Display */}
             {selectedCompanies.length > 0 && (
               <div className="flex gap-2 flex-wrap mt-3">
                 {selectedCompanies.map(sym => (
-                  <span key={sym} className="bg-blue-100 text-blue-800 rounded-full px-3 py-1 flex items-center gap-2 text-sm font-medium">
+                  <span
+                    key={sym}
+                    className="bg-blue-100 text-blue-800 rounded-full px-3 py-1 flex items-center gap-2 text-sm font-medium"
+                  >
                     {sym}
                     <button
                       onClick={() => setSelectedCompanies(prev => prev.filter(c => c !== sym))}
@@ -291,7 +313,10 @@ const StockSearchEngine = () => {
                     </svg>
                   </div>
                 </div>
-                <button onClick={downloadCSV} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">
+                <button
+                  onClick={downloadCSV}
+                  className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                >
                   <Download className="w-4 h-4" />
                   Download CSV
                 </button>
@@ -306,11 +331,12 @@ const StockSearchEngine = () => {
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={stockData}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="time" />
+                      <XAxis dataKey="time" tickFormatter={formatTimeTick} />
                       <YAxis />
                       <Tooltip />
                       <Legend />
-                      {selectedCompanies.map(symbol => (
+                      <Brush dataKey="time" height={30} stroke="#8884d8" />
+                      {selectedCompanies.map(symbol =>
                         selectedMetrics.includes('close') && (
                           <Line
                             key={`${symbol}-close`}
@@ -320,9 +346,10 @@ const StockSearchEngine = () => {
                             name={`${symbol} Close`}
                             stroke={symbolColors[symbol] || '#8884d8'}
                             strokeWidth={2}
+                            dot={false}
                           />
                         )
-                      ))}
+                      )}
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
