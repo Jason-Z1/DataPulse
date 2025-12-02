@@ -1,18 +1,6 @@
 """
-0_ingest.py - Unzip archives and create manifest
-
-
-This script will look for the raw data directory `FirstData`.
-It resolves the data root in the following order:
-1. Command-line argument `--data-root`
-2. Environment variable `FIRSTDATA_PATH`
-3. Repository-relative `FirstData` (two parents up from this file)
-4. Current working directory `FirstData` (legacy behavior)
-
-
-If none of these exist the script will exit with a helpful message.
+0_ingest.py - Unzip archives and create manifest with ticker tags
 """
-
 
 from pathlib import Path
 import zipfile
@@ -22,61 +10,63 @@ import os
 import argparse
 import shutil
 from datetime import datetime
-
+from collections import Counter
 
 
 def resolve_raw_root(cli_path: str | None) -> Path:
-   # 1) CLI argument
-   if cli_path:
-       p = Path(cli_path)
-       if p.exists():
-           return p
-       return p  # return even if missing so caller can show helpful msg
+    # 1) CLI argument
+    if cli_path:
+        p = Path(cli_path)
+        if p.exists():
+            return p
+        return p
 
+    # 2) Environment variable
+    env = os.environ.get('FIRSTDATA_PATH')
+    if env:
+        p = Path(env)
+        if p.exists():
+            return p
+        return p
 
-   # 2) Environment variable
-   env = os.environ.get('FIRSTDATA_PATH')
-   if env:
-       p = Path(env)
-       if p.exists():
-           return p
-       return p
+    # 3) Same directory as script
+    here = Path(__file__).resolve()
+    p = here.parent / 'FirstData'
+    if p.exists():
+        return p
 
+    # 4) Repository-relative: file -> etl -> backend -> repo
+    repo_root = here.parents[2] if len(here.parents) >= 3 else here.parent
+    p = repo_root / 'FirstData'
+    if p.exists():
+        return p
 
-   # 3) Same directory as script
-   here = Path(__file__).resolve()
-   p = here.parent / 'FirstData'
-   if p.exists():
-       return p
+    # 5) Legacy: CWD-relative
+    p = Path('FirstData')
+    return p
 
-
-   # 4) Repository-relative: file -> etl -> backend -> repo
-   repo_root = here.parents[2] if len(here.parents) >= 3 else here.parent
-   p = repo_root / 'FirstData'
-   if p.exists():
-       return p
-
-
-   # 5) Legacy: CWD-relative
-   p = Path('FirstData')
-   return p
-
-# We'll compute RAW_ROOT inside main() after CLI parsing so the script is
-# tolerant of different invocation working directories.
 
 # Setup logging
 logging.basicConfig(
-   level=logging.INFO,
-   format='%(asctime)s - %(levelname)s - %(message)s'
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-
 # Configuration
-TMP = Path("./etl_tmp")
+TMP = Path("etl_tmp")
 TMP.mkdir(exist_ok=True)
 MANIFEST_PATH = TMP / "manifest.json"
 
+
+def extract_tags_from_filename(filename: str):
+    """
+    Extract ticker symbol (everything before first underscore) as the tag.
+    Example: AACT_full_5min_adjsplitdiv.txt -> 'AACT'
+    """
+    name = filename.rsplit('.', 1)[0]
+    tag = name.split('_')[0]
+    return [tag] if tag else []
 
 """
 This function checks for both zip and unzipped folders in the directory of ./FirstData, so make sure that if there
@@ -166,6 +156,7 @@ def main():
 
    extracted_data = []
    manifest_files = []
+   all_tags = []
 
 
    for item_type, interval, path in items:
@@ -186,13 +177,17 @@ def main():
                 # 1) Collect any data files directly present after extracting the archive
                 for file in Path(outdir).rglob("*"):
                    if _is_data_file(file):
+                      tags = extract_tags_from_filename(file.name)
+                      all_tags.extend(tags)
+                      
                        manifest_files.append({
-                           "path": str(file),
-                           "size_bytes": file.stat().st_size,
-                           "interval": interval,
-                           "archive": path.name,
-                           "filename": file.name
-                       })
+                            "path": str(file),
+                            "size_bytes": file.stat().st_size,
+                            "interval": interval,
+                            "archive": path.name,
+                            "filename": file.name,
+                            "tags": tags,
+                        })
                 
                 # 2) Extract any nested company ZIP files and collect their data files
                 for company_zip in Path(outdir).rglob("*.zip"):
@@ -203,12 +198,15 @@ def main():
                        if nested_success:
                            for f in company_target_dir.rglob("*"):
                                if _is_data_file(f):
+                                   tags = extract_tags_from_filename(file.name)
+                                   all_tags.extend(tags)
                                    manifest_files.append({
                                        "path": str(f),
                                        "size_bytes": f.stat().st_size,
                                        "interval": interval,
                                        "archive": company_zip.name,
-                                       "filename": f.name
+                                       "filename": f.name,
+                                       "tags": tags,
                                    })
                     except Exception:
                        logger.exception(f"Failed processing nested zip: {company_zip}")
@@ -218,31 +216,40 @@ def main():
                     shutil.rmtree(firstdata_dir)
                     logger.info(f"Removed duplicate archive tree: {firstdata_dir}")
        elif item_type == 'raw':
+           tags = extract_tags_from_filename(path.name)
+           all_tags.extend(tags)
+        
            manifest_files.append({
                "path": str(path),
                "size_bytes": path.stat().st_size,
                "interval": interval,
                "archive": None,
-               "filename": path.name
+               "filename": path.name,
+               "tags": tags,
            })
+   # Get unique tags and counts
+   tag_counts = Counter(all_tags)
+   unique_tags = sorted(tag_counts.keys())
 
 
    # Write manifest
    manifest = {
-       "created_at": datetime.now().isoformat(),
-       "files": manifest_files
+        "created_at": datetime.now().isoformat(),
+        "files": manifest_files,
+        "all_tags": unique_tags,
+        "tag_counts": dict(tag_counts),
    }
    with open(MANIFEST_PATH, 'w') as f:
        json.dump(manifest, f, indent=2)
    logger.info(f"Manifest created with {len(manifest['files'])} files")
+   logger.info(f"Found {len(unique_tags)} unique tags (ticker symbols)")
+   logger.info(f"Top 10 tickers: {tag_counts.most_common(10)}")
    logger.info(f"Manifest saved to: {MANIFEST_PATH}")
 
-
-   logger.info("="*60)
+   logger.info("=" * 60)
    logger.info(f"Ingestion complete: {len(manifest_files)} files indexed")
-   logger.info("="*60)
-
+   logger.info("=" * 60)
+      
 
 if __name__ == "__main__":
-   main()
-
+    main()

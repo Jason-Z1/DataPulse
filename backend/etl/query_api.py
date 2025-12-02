@@ -5,6 +5,7 @@ import json
 
 app = Flask(__name__)
 
+
 # Manual CORS headers (more reliable than flask-cors sometimes)
 @app.after_request
 def after_request(response):
@@ -13,51 +14,73 @@ def after_request(response):
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
     return response
 
+
 with open("etl_tmp/manifest.json") as f:
     manifest = json.load(f)
+
 
 @app.route('/api/test')
 def test_proxy():
     return {'status': 'proxy works'}
 
 
+@app.route('/api/manifest')
+def get_manifest():
+    return jsonify(manifest)
+
+
 @app.route("/api/query_stock")
 def query_stock():
     print("=== API ENDPOINT HIT ===")
     print(f"Request args: {request.args}")
-    
-    # Support multiple symbols/companies
+
     symbols = request.args.getlist('symbols[]')
     print(f"Symbols: {symbols}")
-    
+
     # Fallback for old single symbol API
     if not symbols:
         symbol = request.args.get('symbol')
         if symbol:
             symbols = [symbol]
-    
+
     interval = request.args.get('interval')
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
     metrics = request.args.getlist('metrics[]')
-    
+
     print(f"Interval: {interval}, Date from: {date_from}, Date to: {date_to}")
     print(f"Metrics: {metrics}")
 
     all_results = []
+
     for symbol in symbols:
-        matches = [f for f in manifest['files']
-                   if (symbol in f['filename'] and f['interval'] == interval)]
+        sym_norm = symbol.upper()
+        matches = [
+            f for f in manifest['files']
+            if (
+                sym_norm in [t.upper() for t in f.get('tags', [])]
+                and f['interval'] == interval
+            )
+        ]
+
         if not matches:
-            continue  # Or optionally add error message per symbol
+            print(f"No file match found for symbol={symbol} interval={interval}")
+            continue
 
         # Load the first match for each symbol
-        df = pd.read_csv(matches[0]['path'], header=None,
-                         names=["time", "open", "high", "low", "close", "volume"], delimiter=",")
-        df['time'] = pd.to_datetime(df['time'])
-        df['symbol'] = symbol  # For frontend distinction
+        file_meta = matches[0]
+        print(f"Using file for {symbol}: {file_meta['path']}")
 
-        # Filter times
+        df = pd.read_csv(
+            file_meta['path'],
+            header=None,
+            names=["time", "open", "high", "low", "close", "volume"],
+            delimiter=",",
+        )
+        df['time'] = pd.to_datetime(df['time'])
+        df['symbol'] = sym_norm  # normalized symbol for frontend
+
+        # Filter times (string comparison is OK because df['time'] is datetime)
         if date_from:
             df = df[df['time'] >= date_from]
         if date_to:
@@ -75,12 +98,13 @@ def query_stock():
 
     return jsonify(all_results)
 
+
 @app.route("/")
 def home():
     html = """
     <h2>Stock Data Query Tester (Multi-Symbol)</h2>
     <form method="get" action="/api/query_stock" id="apiForm">
-        <label>Symbols (comma separated): <input name="symbols" id="symbolsInput" value="AAPL,TSLA"></label><br>
+        <label>Symbols (comma separated): <input name="symbols" id="symbolsInput" value="A,AA,AAPL,TSLA"></label><br>
         <label>Interval:
             <select name="interval">
                 <option value="1hr">1hr</option>
@@ -120,6 +144,7 @@ def home():
     <p>Results will show as JSON below the form.</p>
     """
     return render_template_string(html)
+
 
 if __name__ == "__main__":
     app.run(debug=True)
