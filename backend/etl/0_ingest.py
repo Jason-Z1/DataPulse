@@ -176,11 +176,11 @@ def main():
 
                 # 1) Collect any data files directly present after extracting the archive
                 for file in Path(outdir).rglob("*"):
-                   if _is_data_file(file):
-                      tags = extract_tags_from_filename(file.name)
-                      all_tags.extend(tags)
+                    if _is_data_file(file):
+                        tags = extract_tags_from_filename(file.name)
+                        all_tags.extend(tags)
                       
-                       manifest_files.append({
+                        manifest_files.append({
                             "path": str(file),
                             "size_bytes": file.stat().st_size,
                             "interval": interval,
