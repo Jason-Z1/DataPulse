@@ -12,7 +12,7 @@ import {
   Brush,
 } from 'recharts';
 
-const INTERVALS = ["1min", "5min", "1hour", "1d", "1w"];
+const INTERVALS = ["1min", "5min", "1hour", "1d", "1w","30min"];
 const METRICS = ["open", "high", "low", "close", "volume"];
 
 const StockSearchEngine = () => {
