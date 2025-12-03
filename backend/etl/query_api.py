@@ -8,7 +8,6 @@ import io
 
 app = Flask(__name__)
 
-
 # Manual CORS headers
 @app.after_request
 def after_request(response):
@@ -17,20 +16,16 @@ def after_request(response):
     response.headers.add("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,OPTIONS")
     return response
 
-
 with open("etl_tmp/manifest.json") as f:
     manifest = json.load(f)
-
 
 @app.route("/api/test")
 def test_proxy():
     return {"status": "proxy works"}
 
-
 @app.route("/api/manifest")
 def get_manifest():
     return jsonify(manifest)
-
 
 def load_csv_from_manifest_entry(file_meta):
     """
@@ -98,7 +93,6 @@ def load_csv_from_manifest_entry(file_meta):
     # Fallback: should not reach here if manifest paths are correct
     raise FileNotFoundError(f"Could not resolve nested path: {path}")
 
-
 @app.route("/api/query_stock")
 def query_stock():
     print("=== API ENDPOINT HIT ===")
@@ -120,6 +114,10 @@ def query_stock():
 
     print(f"Interval: {interval}, Date from: {date_from}, Date to: {date_to}")
     print(f"Metrics: {metrics}")
+
+    # Parse dates once as real timestamps
+    dt_from = pd.to_datetime(date_from) if date_from else None
+    dt_to = pd.to_datetime(date_to) if date_to else None  # [web:164]
 
     all_results = []
 
@@ -147,20 +145,21 @@ def query_stock():
         df["time"] = pd.to_datetime(df["time"])
         df["symbol"] = sym_norm
 
-        if date_from:
-            df = df[df["time"] >= date_from]
-        if date_to:
-            df = df[df["time"] <= date_to]
+        if dt_from is not None:
+            df = df[df["time"] >= dt_from]
+        if dt_to is not None:
+            df = df[df["time"] <= dt_to]
 
         fields = ["time", "symbol"] + [m for m in metrics if m in df.columns]
-        result = df[fields].head(500).to_dict(orient="records")
+
+        # Remove the 500-row cap so full range is returned
+        result = df[fields].to_dict(orient="records")  # [web:170]
         all_results.extend(result)
 
     if not all_results:
         return jsonify({"error": "No matching data file."}), 404
 
     return jsonify(all_results)
-
 
 @app.route("/")
 def home():
@@ -208,7 +207,6 @@ def home():
     <p>Results will show as JSON below the form.</p>
     """
     return render_template_string(html)
-
 
 if __name__ == "__main__":
     app.run(debug=True)

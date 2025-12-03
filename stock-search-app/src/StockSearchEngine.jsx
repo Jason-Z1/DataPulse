@@ -1,26 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Download, TrendingUp, Table, X } from 'lucide-react';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-  Brush,
-} from 'recharts';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Search, Download, TrendingUp, X } from 'lucide-react';
+import { LineChart } from '@mui/x-charts/LineChart';
 
-const INTERVALS = ["1min", "5min", "1hour", "1d", "1w","30min"];
+const INTERVALS = ["1min", "5min", "30min", "1hour", "1d", "1w"];
 const METRICS = ["open", "high", "low", "close", "volume"];
+
+const symbolColors = {
+  AAPL: '#8884d8',
+  AA:   '#82ca9d',
+  A:    '#ffc658',
+  MSFT: '#ff7300',
+  AMZN: '#a4de6c',
+};
 
 const StockSearchEngine = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCompanies, setSelectedCompanies] = useState([]);
-  const [interval, setInterval] = useState("1hr");
+  const [interval, setInterval] = useState("1hour");
   const [dateFrom, setDateFrom] = useState('2005-01-01');
-  const [dateTo, setDateTo] = useState('2005-01-10');
+  const [dateTo, setDateTo] = useState('2005-01-31');
   const [selectedMetrics, setSelectedMetrics] = useState([...METRICS]);
   const [viewMode, setViewMode] = useState('chart');
   const [showResults, setShowResults] = useState(false);
@@ -35,33 +33,23 @@ const StockSearchEngine = () => {
       try {
         setLoadingSymbols(true);
         const response = await fetch('/api/manifest');
+        if (!response.ok) throw new Error('Bad manifest response');
         const manifest = await response.json();
-
-        const formatted = manifest.all_tags.map(tag => ({
+        const formatted = (manifest.all_tags || []).map(tag => ({
           symbol: tag,
           name: tag,
           tags: [tag],
         }));
-
         setCompanies(formatted);
-        setLoadingSymbols(false);
       } catch (err) {
         console.error("Failed to load symbols from manifest", err);
-        setError('Failed to load ticker symbols. Please ensure Flask is running');
+        setError('Failed to load ticker symbols. Please ensure Flask is running.');
+      } finally {
         setLoadingSymbols(false);
       }
     };
-
     fetchSymbols();
   }, []);
-
-  const symbolColors = {
-    'AAPL': '#8884d8',
-    'AA': '#82ca9d',
-    'A': '#ffc658',
-    'MSFT': '#ff7300',
-    'AMZN': '#a4de6c',
-  };
 
   const handleSearch = async () => {
     if (selectedCompanies.length === 0) {
@@ -72,31 +60,33 @@ const StockSearchEngine = () => {
     setShowResults(false);
     setLoading(true);
     setError('');
+
     const params = [
-      ...selectedCompanies.map(sym => `symbols[]=${sym}`),
-      `interval=${interval}`,
-      `date_from=${dateFrom}`,
-      `date_to=${dateTo}`,
-      ...selectedMetrics.map(m => `metrics[]=${m}`),
+      ...selectedCompanies.map(sym => `symbols[]=${encodeURIComponent(sym)}`),
+      `interval=${encodeURIComponent(interval)}`,
+      `date_from=${encodeURIComponent(dateFrom)}`,
+      `date_to=${encodeURIComponent(dateTo)}`,
+      ...selectedMetrics.map(m => `metrics[]=${encodeURIComponent(m)}`),
     ].join('&');
+
     try {
       const res = await fetch(`/api/query_stock?${params}`);
       if (!res.ok) {
         setError('No data found for this search.');
         setStockData([]);
-        setLoading(false);
         setShowResults(true);
         return;
       }
       const data = await res.json();
-      setStockData(data);
-      setLoading(false);
+      setStockData(Array.isArray(data) ? data : []);
       setShowResults(true);
     } catch (err) {
+      console.error(err);
       setError('Network error or backend not running.');
       setStockData([]);
-      setLoading(false);
       setShowResults(true);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -110,13 +100,20 @@ const StockSearchEngine = () => {
 
   const downloadCSV = () => {
     if (!stockData.length) return;
-    const headers = ['Time', 'Symbol', ...selectedMetrics.map(m => m.charAt(0).toUpperCase() + m.slice(1))];
+    const headers = ['Time', 'Symbol', ...selectedMetrics.map(
+      m => m.charAt(0).toUpperCase() + m.slice(1)
+    )];
     const csvContent = [
       headers.join(','),
       ...stockData.map(row =>
-        [row.time, row.symbol, ...selectedMetrics.map(metric => row[metric])].join(',')
+        [
+          row.time,
+          row.symbol,
+          ...selectedMetrics.map(metric => row[metric]),
+        ].join(',')
       ),
     ].join('\n');
+
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -130,12 +127,68 @@ const StockSearchEngine = () => {
     company.symbol.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Simple date formatter for X axis: show only YYYY-MM-DD
-  const formatTimeTick = (value) => {
-    if (!value) return '';
-    // value is an ISO string from backend; keep the date part
-    return String(value).slice(0, 10);
-  };
+  // Downsample data for performance with large datasets
+  const denseData = useMemo(() => {
+    const MAX_POINTS = 3000;
+    if (stockData.length <= MAX_POINTS) return stockData;
+    
+    const step = Math.ceil(stockData.length / MAX_POINTS);
+    return stockData.filter((_, idx) => idx % step === 0);
+  }, [stockData]);
+
+  // Build pivoted dataset for MUI X Charts with real zoom/pan
+  const chartConfig = useMemo(() => {
+    if (!denseData.length || !selectedMetrics.includes('close')) {
+      return { dataset: [], series: [], xAxis: [] };
+    }
+
+    // Group data by timestamp and pivot
+    const timeMap = {};
+    denseData.forEach(row => {
+      if (!timeMap[row.time]) {
+        timeMap[row.time] = { time: new Date(row.time) };
+      }
+      timeMap[row.time][`close_${row.symbol}`] = row.close;
+    });
+
+    // Convert to array and sort by time
+    const dataset = Object.values(timeMap).sort((a, b) => a.time - b.time);
+
+    // Build series for each selected symbol
+    const series = selectedCompanies
+      .filter(symbol => {
+        // Check if this symbol has any data
+        return dataset.some(row => row[`close_${symbol}`] != null);
+      })
+      .map(symbol => ({
+        id: `${symbol}-close`,
+        label: `${symbol} Close`,
+        dataKey: `close_${symbol}`,
+        showMark: false,
+        color: symbolColors[symbol] || '#8884d8',
+        connectNulls: true,
+      }));
+
+    // Configure x-axis with zoom and pan
+    const xAxis = [{
+      dataKey: 'time',
+      scaleType: 'time',
+      valueFormatter: (v) => {
+        if (!v) return '';
+        const date = v instanceof Date ? v : new Date(v);
+        return date.toISOString().slice(0, 10);
+      },
+      zoom: {
+        minSpan: 50,  // minimum number of points visible
+        panning: true, // enable drag to pan
+        filterMode: 'discard',
+      },
+      // Enable pinch-to-zoom on touchpad/touchscreen
+      disablePinch: false,
+    }];
+
+    return { dataset, series, xAxis };
+  }, [denseData, selectedCompanies, selectedMetrics]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
@@ -161,13 +214,21 @@ const StockSearchEngine = () => {
             Search Financial Data
           </h2>
 
+          {/* Symbol search */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Company Symbols {loadingSymbols && <span className="text-blue-600 text-xs">(Loading...)</span>}
-              {!loadingSymbols && <span className="text-gray-500 text-xs">({companies.length} available)</span>}
+              Company Symbols{" "}
+              {loadingSymbols && (
+                <span className="text-blue-600 text-xs">(Loading...)</span>
+              )}
+              {!loadingSymbols && (
+                <span className="text-gray-500 text-xs">
+                  ({companies.length} available)
+                </span>
+              )}
             </label>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"
                 value={searchQuery}
@@ -191,7 +252,9 @@ const StockSearchEngine = () => {
                       }}
                       className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
                     >
-                      <div className="font-semibold text-gray-800">{company.symbol}</div>
+                      <div className="font-semibold text-gray-800">
+                        {company.symbol}
+                      </div>
                     </div>
                   ))}
                   {filteredCompanies.length > 50 && (
@@ -203,7 +266,7 @@ const StockSearchEngine = () => {
               )}
             </div>
 
-            {/* Selected Companies Display */}
+            {/* Selected Companies */}
             {selectedCompanies.length > 0 && (
               <div className="flex gap-2 flex-wrap mt-3">
                 {selectedCompanies.map(sym => (
@@ -213,7 +276,9 @@ const StockSearchEngine = () => {
                   >
                     {sym}
                     <button
-                      onClick={() => setSelectedCompanies(prev => prev.filter(c => c !== sym))}
+                      onClick={() =>
+                        setSelectedCompanies(prev => prev.filter(c => c !== sym))
+                      }
                       className="hover:bg-blue-200 rounded-full p-0.5 transition-colors"
                     >
                       <X className="w-3 h-3" />
@@ -226,14 +291,18 @@ const StockSearchEngine = () => {
 
           {/* Interval Selection */}
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Interval</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Interval
+            </label>
             <select
               value={interval}
               onChange={e => setInterval(e.target.value)}
               className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
               {INTERVALS.map(intv => (
-                <option key={intv} value={intv}>{intv}</option>
+                <option key={intv} value={intv}>
+                  {intv}
+                </option>
               ))}
             </select>
           </div>
@@ -241,7 +310,9 @@ const StockSearchEngine = () => {
           {/* Date Range */}
           <div className="mb-6 grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Date From</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Date From
+              </label>
               <input
                 type="date"
                 value={dateFrom}
@@ -250,7 +321,9 @@ const StockSearchEngine = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Date To</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Date To
+              </label>
               <input
                 type="date"
                 value={dateTo}
@@ -262,7 +335,9 @@ const StockSearchEngine = () => {
 
           {/* Metrics */}
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-3">Metrics</label>
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Metrics
+            </label>
             <div className="flex flex-wrap gap-3">
               {METRICS.map(metric => (
                 <label key={metric} className="flex items-center">
@@ -272,7 +347,9 @@ const StockSearchEngine = () => {
                     onChange={() => handleMetricToggle(metric)}
                     className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
-                  <span className="capitalize font-medium text-gray-700">{metric}</span>
+                  <span className="capitalize font-medium text-gray-700">
+                    {metric}
+                  </span>
                 </label>
               ))}
             </div>
@@ -283,12 +360,17 @@ const StockSearchEngine = () => {
             disabled={selectedCompanies.length === 0 || loadingSymbols}
             className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Search Data ({selectedCompanies.length} {selectedCompanies.length === 1 ? 'symbol' : 'symbols'})
+            Search Data ({selectedCompanies.length}{" "}
+            {selectedCompanies.length === 1 ? 'symbol' : 'symbols'})
           </button>
         </div>
 
-        {loading && <p className="text-blue-600 text-center text-lg">Loading...</p>}
-        {error && <p className="text-red-600 text-center text-lg">{error}</p>}
+        {loading && (
+          <p className="text-blue-600 text-center text-lg">Loading...</p>
+        )}
+        {error && (
+          <p className="text-red-600 text-center text-lg">{error}</p>
+        )}
 
         {/* Results Section */}
         {showResults && stockData.length > 0 && (
@@ -308,8 +390,18 @@ const StockSearchEngine = () => {
                     <option value="table">Table View</option>
                   </select>
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-white">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M19 9l-7 7-7-7"
+                      />
                     </svg>
                   </div>
                 </div>
@@ -323,36 +415,42 @@ const StockSearchEngine = () => {
               </div>
             </div>
 
-            {/* Chart View */}
+            {/* Chart View with MUI X Charts - Real Zoom & Pan */}
             {viewMode === 'chart' && (
               <div className="mb-8">
-                <h3 className="text-lg font-semibold mb-4">Price Chart</h3>
+                <h3 className="text-lg font-semibold mb-4">
+                  Price Chart 
+                  {denseData.length < stockData.length && (
+                    <span className="text-sm text-gray-500 ml-2">
+                      (Showing {denseData.length} of {stockData.length} points for performance)
+                    </span>
+                  )}
+                </h3>
                 <div className="h-96">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={stockData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="time" tickFormatter={formatTimeTick} />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Brush dataKey="time" height={30} stroke="#8884d8" />
-                      {selectedCompanies.map(symbol =>
-                        selectedMetrics.includes('close') && (
-                          <Line
-                            key={`${symbol}-close`}
-                            type="monotone"
-                            dataKey="close"
-                            data={stockData.filter(d => d.symbol === symbol)}
-                            name={`${symbol} Close`}
-                            stroke={symbolColors[symbol] || '#8884d8'}
-                            strokeWidth={2}
-                            dot={false}
-                          />
-                        )
-                      )}
-                    </LineChart>
-                  </ResponsiveContainer>
+                  {chartConfig.dataset.length > 0 && chartConfig.series.length > 0 ? (
+                    <LineChart
+                      dataset={chartConfig.dataset}
+                      xAxis={chartConfig.xAxis}
+                      series={chartConfig.series}
+                      height={384}
+                      margin={{ top: 20, right: 20, bottom: 50, left: 70 }}
+                      slotProps={{
+                        legend: {
+                          direction: 'row',
+                          position: { vertical: 'top', horizontal: 'middle' },
+                          padding: 0,
+                        },
+                      }}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-500">
+                      No chart data available. Please ensure "close" metric is selected.
+                    </div>
+                  )}
                 </div>
+                <p className="text-sm text-gray-600 mt-2">
+                  💡 Tip: <strong>Mouse:</strong> Scroll wheel to zoom, drag to pan • <strong>Touchpad:</strong> Two-finger pinch to zoom, two-finger drag to pan
+                </p>
               </div>
             )}
 
@@ -360,32 +458,49 @@ const StockSearchEngine = () => {
             {viewMode === 'table' && (
               <div>
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Table className="w-5 h-5" />
                   Data Table
                 </h3>
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse border border-gray-300">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="border border-gray-300 px-4 py-2 text-left font-semibold">Time</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left font-semibold">Symbol</th>
-                        {selectedMetrics.map(metric =>
-                          <th key={metric} className="border border-gray-300 px-4 py-2 text-left font-semibold">
+                        <th className="border border-gray-300 px-4 py-2 text-left font-semibold">
+                          Time
+                        </th>
+                        <th className="border border-gray-300 px-4 py-2 text-left font-semibold">
+                          Symbol
+                        </th>
+                        {selectedMetrics.map(metric => (
+                          <th
+                            key={metric}
+                            className="border border-gray-300 px-4 py-2 text-left font-semibold"
+                          >
                             {metric.charAt(0).toUpperCase() + metric.slice(1)}
                           </th>
-                        )}
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
                       {stockData.map((row, index) => (
                         <tr key={index} className="hover:bg-gray-50">
-                          <td className="border border-gray-300 px-4 py-2">{row.time}</td>
-                          <td className="border border-gray-300 px-4 py-2 font-semibold">{row.symbol}</td>
-                          {selectedMetrics.map(metric =>
-                            <td key={metric} className="border border-gray-300 px-4 py-2">
-                              {metric === 'volume' ? row[metric]?.toLocaleString() : (+row[metric]).toFixed(4)}
+                          <td className="border border-gray-300 px-4 py-2">
+                            {row.time}
+                          </td>
+                          <td className="border border-gray-300 px-4 py-2 font-semibold">
+                            {row.symbol}
+                          </td>
+                          {selectedMetrics.map(metric => (
+                            <td
+                              key={metric}
+                              className="border border-gray-300 px-4 py-2"
+                            >
+                              {metric === 'volume'
+                                ? row[metric]?.toLocaleString()
+                                : (row[metric] != null
+                                    ? (+row[metric]).toFixed(4)
+                                    : '')}
                             </td>
-                          )}
+                          ))}
                         </tr>
                       ))}
                     </tbody>
