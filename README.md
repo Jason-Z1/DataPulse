@@ -38,6 +38,14 @@ Data that's cleaned and organized by 0_ingest.py. Instruction to setting up the 
 
 Paths, intervals, and company symbols are stored in manifest.json, where query_api.py uses it to direct its calls.
 
+1. Import your data into DataPulse/backend/etl/FirstData (can be either zip file or folder)
+
+2. Run the 0_ingest.py
+
+3. DataPulse/etl_tmp/... is created that should include:
+- Time increment files you inserted
+- manifest.json
+
 ---
 
 ## Backend
@@ -145,15 +153,18 @@ npm test
 DataPulse/
 ├── public/
 │   └── index.html
-├── src/
-│   ├── StockSearchEngine.jsx    # Main application component
-│   ├── App.js                    # Root component
-│   ├── App.css                   # Global styles
-│   └── index.js                  # Entry point
-├── .gitignore
-├── package.json
-├── tailwind.config.js            # Tailwind CSS configuration
-└── README.md
+├── stock-search-app/
+|   ├──src/
+│   │  ├── StockSearchEngine.jsx    # Main application component
+│   │  ├── App.js                    # Root component
+│   │  ├── App.css                   # Global styles
+│   │  └── index.js                  # Entry point
+│   ├── .gitignore
+│   ├── package.json
+│   ├── tailwind.config.js            # Tailwind CSS configuration
+│   └── README.md
+├──requirements.txt
+└──README.md
 ```
 
 ---
@@ -188,36 +199,4 @@ Ejects from Create React App for full configuration control.
 4. **Search Data**: Click "Search Data" button to display results
 5. **Export**: Download filtered data as CSV using "Download CSV" button
 
----
-
-## Backend Development
-
-1. **../raw/** - this is the raw data that is shared with us.
-  * This project is intended to only normalize, query, and present the stock data so researchers can work more efficiently
-
-2. **../data/** - this is the normalized data that will be stored in a Parquet file for faster look-ups.
-  * Again, this project is only intended to provide the script to query the stock data. The data will be provided by each user on their own.
-
-3. **../rollups/** - pre-aggregated 5m / 30min / 1hr Parquet
-
-4. **main.py** - finds the file path for the given symbol and time increment. Once the file path is found, the script will use PyArrow to efficiently parse through the file to find stock data from *Time Start* to *Time End*. 
-
-- Currently working on processing multiple stock company inputs
-- Also planning on outputing visualization of the data using NumPy
-- Currently takes the data that *parser.py* returns and outputs it into an output.txt file (can be adapted to other forms)
-
-5. **parser.py** - is the helper class for main.py. It contains the function to parse any csv/txt file given to it and returns a table of the filtered data
-
----
-This section is going to be scrapped for now, will be considered for further optimizations in the future
-
-6. **etl_ohlvc.py** - the script that will normalize the data (read raw -> write data)
-  * Input is the data from ../raw/ and the output is going to ../data/ where the data will be stored in a Parquet file
----
-
-
 ## Issues:
-
-- *ingest.py* is getting the wrong interval values
-- *ingest.py* should probably also just create the parquet files and clean the data then delete the zip files once its done running just for maximum efficiency. Also for the search implementation. If we want an autocomplete feature, it would be easier to clean the data/columnarize it for easier look-up of the *Stock Company Symbol*.
-- Not sure which we are using, because it seems *parser.py*/*main.py* is doing the same thing at *0_ingest.py*/*query_api.y*. Only difference is the way that they are filtering the data
