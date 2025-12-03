@@ -32,24 +32,26 @@ DataPulse is a financial data search engine designed to efficiently query and vi
 - **Data Export**: Download filtered results as CSV files
 - **Responsive Design**: Works seamlessly on desktop and mobile devices
 
-### Demo Data
+### Data
 
-Currently displays mock stock data for demonstration purposes. Backend integration will connect to real CSV datasets.
+Data that's cleaned and organized by 0_ingest.py. Instruction to setting up the database can be found below.
+
+Paths, intervals, and company symbols are stored in manifest.json, where query_api.py uses it to direct its calls.
 
 ---
 
-## Backend (In Development)
+## Backend
 
 ### Planned Technology Stack
 
 **API & Server:**
-- FastAPI for RESTful API endpoints
-- Uvicorn for ASGI server deployment
+- Flask is used to build APIs
+  - CORS headers were set in `after_request` so that the frontend can call these endspoints
+- Node for local server deploy and tests
 
 **Data Processing:**
 - Pandas for CSV data manipulation and filtering
-- Dask for parallel chunked processing of large files (138GB+)
-- PyArrow for optimized CSV parsing (10x faster reads)
+- JSON + HTTP to load the manifest data and retrieve symbols and intervals they correspond to
 
 **Integration:**
 - CORS middleware for secure React-Python communication
@@ -57,7 +59,7 @@ Currently displays mock stock data for demonstration purposes. Backend integrati
 ### Architecture
 
 ```
-React Frontend (Port 3000) ←→ FastAPI Backend (Port 5000) ←→ CSV Files (138GB)
+React Frontend (Port 3000) ←→ Flask Backend (Port 5000) ←→ CSV Files (138GB)
 ```
 
 **No database required** - Direct CSV processing with efficient chunking and filtering.
@@ -76,12 +78,19 @@ React Frontend (Port 3000) ←→ FastAPI Backend (Port 5000) ←→ CSV Files (
 1. Clone the repository:
 ```bash
 git clone [repository-url]
-cd DataPulse
+cd DataPulse/stock-search-app
 ```
 
 2. Install dependencies:
 ```bash
 npm install
+```
+
+3. Install requirements
+Make sure you are at the root directory
+```bash
+cd DataPulse
+pip install -r requirements
 ```
 
 ### Dependencies
@@ -106,6 +115,7 @@ The project uses the following npm packages:
 Start the React development server:
 
 ```bash
+cd DataPulse/stock-search-app
 npm start
 ```
 
