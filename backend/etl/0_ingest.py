@@ -81,24 +81,28 @@ def discover_files(raw_root):
     for interval_dir in sorted(raw_root.iterdir()):
         interval = interval_dir.name
         if interval_dir.is_dir():
-             # Find ZIP archives directly under interval dir
+            # Find ZIP archives directly under interval dir
+            """
             for archive in interval_dir.rglob("*.zip"):
+                print("Finds a zip under the directory", interval_dir) # /1hour
+                print(archive) # /Historical_stock_full_{letter}_1hour_adj_splitdiv.zip
                 items.append(('archive', interval, archive))
-            # Finds any nested archives anywhere under the interval dir
-            for nested_archive in interval_dir.rglob("*.zip"):
-                if nested_archive.parent == interval_dir:
-                    pass # Already added the top-level zip
-                items.append(("archive", interval, nested_archive))
-            # Find .txt and .csv files recursively
+             
+            """
             for file_path in interval_dir.rglob("*"):
-                if file_path.name.lower().endswith((".csv", ".txt", ".csv.gz", ".txt.gz")):
-                    items.append(('raw', interval, file_path))
+               path = str(file_path)
+               fileType = '.' + path.split('.')[-1]
+               if fileType in DATA_EXT:
+                  items.append(('raw', interval, file_path))
+               elif(fileType == ".zip"):
+                  items.append(('archive', interval, file_path))
+            
         
         elif interval_dir.is_file():
             # Top-level file. If it's a zip, treat it as an archive with interval = stem
             if interval_dir.suffix.lower() == ".zip" or zipfile.is_zipfile(interval_dir):
-                interval = interval_dir.stem
-                items.append(("archive", interval, interval_dir))
+               interval = interval_dir.stem
+               items.append(('archive', interval, interval_dir))
             # Top-level raw files e.g. AAPL_full_1hour_adjsplitdiv.txt directly at raw_root
             elif interval_dir.suffix.lower() in DATA_EXT:
                 # Interval unknown from filename -- set to empty for now
@@ -150,6 +154,14 @@ def main():
 
 
    items = discover_files(RAW_ROOT)
+   
+   """
+   Routes all the data
+   archive - zipped files that have more directories underneath
+   dir - regular folders with directories leading to zipped files
+   raw - straight .csv/.parquet file
+   """
+
    if not items:
        logger.warning("No TXT/CSV or ZIP files found!")
        return
@@ -158,18 +170,19 @@ def main():
    manifest_files = []
    all_tags = []
 
-
-   for item_type, interval, path in items:
+   for item_type, interval, path in items:           
        if item_type == 'archive':
-           # If the archive stem matches the interval (e.g. '1hour')
-           if path.stem == interval or not path.stem:
+         # If the archive stem matches the interval (e.g. '1hour')
+               
+         if path.stem == interval or not path.stem:
                outdir = TMP / interval
-           else:
+         else:
                outdir = TMP / interval / path.stem
-           outdir.mkdir(parents=True, exist_ok=True)
-           success = unzip_archive(path, outdir)
-           extracted_data.append((interval, path.name, outdir, success))
-           if success:
+
+         outdir.mkdir(parents=True, exist_ok=True)
+         success = unzip_archive(path, outdir)
+         extracted_data.append((interval, path.name, outdir, success))
+         if success:
                 def _is_data_file(p: Path) -> bool:
                    n = p.name.lower()
                    return n.endswith('.csv') or n.endswith('.txt') or n.endswith('.csv.gz') or n.endswith('.txt.gz')
@@ -198,7 +211,7 @@ def main():
                        if nested_success:
                            for f in company_target_dir.rglob("*"):
                                if _is_data_file(f):
-                                   tags = extract_tags_from_filename(file.name)
+                                   tags = extract_tags_from_filename(f.name)
                                    all_tags.extend(tags)
                                    manifest_files.append({
                                        "path": str(f),
@@ -215,7 +228,7 @@ def main():
                 if firstdata_dir.exists():
                     shutil.rmtree(firstdata_dir)
                     logger.info(f"Removed duplicate archive tree: {firstdata_dir}")
-       elif item_type == 'raw':
+         elif item_type == 'raw':
            tags = extract_tags_from_filename(path.name)
            all_tags.extend(tags)
         
@@ -230,7 +243,6 @@ def main():
    # Get unique tags and counts
    tag_counts = Counter(all_tags)
    unique_tags = sorted(tag_counts.keys())
-
 
    # Write manifest
    manifest = {
