@@ -448,9 +448,6 @@ const StockSearchEngine = () => {
                     </div>
                   )}
                 </div>
-                <p className="text-sm text-gray-600 mt-2">
-                  💡 Tip: <strong>Mouse:</strong> Scroll wheel to zoom, drag to pan • <strong>Touchpad:</strong> Two-finger pinch to zoom, two-finger drag to pan
-                </p>
               </div>
             )}
 
