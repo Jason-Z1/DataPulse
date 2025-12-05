@@ -43,8 +43,9 @@ Paths, intervals, and company symbols are stored in manifest.json, where query_a
 2. Run the 0_ingest.py
 
 3. DataPulse/etl_tmp/... is created that should include:
-- Time increment files you inserted
 - manifest.json
+
+Manifest.json is going to be referenced in query_api.py to find the information in your local data to present the stock information.
 
 ---
 
@@ -95,6 +96,9 @@ npm install
 ```
 
 3. Install requirements
+NOTE: before installing, make sure you are running the correct Python Interpreter in your Integrated Development Environment (IDE) (Ex. VSCode)
+- You want to install the required libraries to your Python Interpreter so your interpreter has the files to reference when running the python scripts.
+
 Make sure you are at the root directory
 ```bash
 cd DataPulse
@@ -120,7 +124,10 @@ The project uses the following npm packages:
 
 #### Development Mode
 
-Start the React development server:
+1. Make sure that your Integrated Development Environment (IDE) is set to the right python interpreter and run DataPulse/backend/etl/query_api.py
+- This starts the script to search the data in your local storage for whenever the StockSearchEngine.jsx sends an endpoint to fetch data from the specific stock and intervals.
+
+2. Start the React development server:
 
 ```bash
 cd DataPulse/stock-search-app
@@ -129,7 +136,7 @@ npm start
 
 The application will open automatically at `http://localhost:3000`
 
-#### Production Build
+#### Production Build (OPTIONAL)
 
 Create an optimized production build:
 
@@ -137,7 +144,7 @@ Create an optimized production build:
 npm run build
 ```
 
-#### Running Tests
+#### Running Tests (OPTIONAL)
 
 Execute the test suite:
 
@@ -151,8 +158,12 @@ npm test
 
 ```
 DataPulse/
-├── public/
-│   └── index.html
+├── backend/
+│   └── etl/
+|        ├──FirstData/
+|        ├──0_ingest.py
+|        └──query_api.py        # Runs the backend processes such as searching and filtering stock data while also creating endpoints to communicate with frontend(StockSearchEngine.
+|                                jsx)
 ├── stock-search-app/
 |   ├──src/
 │   │  ├── StockSearchEngine.jsx    # Main application component
