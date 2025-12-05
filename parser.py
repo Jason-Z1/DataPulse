@@ -12,7 +12,7 @@ import pyarrow.compute as pc
 
 def find_file(symbol: str, increm: str, base_path: str = "../") -> str:
     """
-    Supposed to find the file path for the given stock symbol and time increment in the current file structure
+    Finds the file path for the given stock symbol and time increment in the current file structure
 
     symbol = ticker (AAPL)
     increm = time increment (5min, 1hr, etc)
